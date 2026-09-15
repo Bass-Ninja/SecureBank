@@ -1,6 +1,0 @@
-@SecureBank.Api_HostAddress = http://localhost:5000
-
-GET {{SecureBank.Api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

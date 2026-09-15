@@ -7,22 +7,26 @@ using SecureBank.Domain.ValueObjects;
 namespace SecureBank.Application.Commands.Transfers;
 
 public sealed class TransferMoneyHandler(
-    ISecureBankDbContext dbContext)
+    ISecureBankDbContext dbContext,
+    IUserContext userContext)
     : IRequestHandler<TransferMoneyCommand, Guid>
 {
     public async ValueTask<Guid> Handle(
         TransferMoneyCommand request,
         CancellationToken cancellationToken)
     {
+        var userId = userContext.UserId;
+
         var sourceAccount = await dbContext.Accounts
             .FirstOrDefaultAsync(
-                x => x.Id == request.SourceAccountId,
+                x => x.Id == request.SourceAccountId
+                    && x.UserId == userId,
                 cancellationToken);
 
         if (sourceAccount is null)
             throw new InvalidOperationException(
                 "Source account was not found.");
-
+                
         var destinationAccount = await dbContext.Accounts
             .FirstOrDefaultAsync(
                 x => x.Id == request.DestinationAccountId,

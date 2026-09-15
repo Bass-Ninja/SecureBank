@@ -11,6 +11,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=securebank;Username=securebank;Password=securebank_dev_password"
       Keycloak__Authority: "http://keycloak:8080/realms/securebank"
+      Keycloak__Issuer: "http://localhost:8081/realms/securebank"
+      Keycloak__Audience: "securebank-api"
     depends_on:
       postgres:
         condition: service_healthy
