@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SecureBank.Api/SecureBank.Api.csproj" />
+    <Project Path="src/SecureBank.Application/SecureBank.Application.csproj" />
+    <Project Path="src/SecureBank.Domain/SecureBank.Domain.csproj" />
+    <Project Path="src/SecureBank.Infrastructure/SecureBank.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SecureBank.IntegrationTests/SecureBank.IntegrationTests.csproj" />
+    <Project Path="tests/SecureBank.UnitTests/SecureBank.UnitTests.csproj" />
+  </Folder>
+</Solution>
