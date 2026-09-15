@@ -1,4 +1,7 @@
+using FluentValidation;
+using Mediator;
 using Microsoft.Extensions.DependencyInjection;
+using SecureBank.Application.Behaviors;
 
 namespace SecureBank.Application;
 
@@ -8,6 +11,13 @@ public static class DependencyInjection
         this IServiceCollection services)
     {
         services.AddMediator();
+
+        services.AddValidatorsFromAssembly(
+            typeof(DependencyInjection).Assembly);
+
+        services.AddTransient(
+            typeof(IPipelineBehavior<,>),
+            typeof(ValidationBehavior<,>));
 
         return services;
     }

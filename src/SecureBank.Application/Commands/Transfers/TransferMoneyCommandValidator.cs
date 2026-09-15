@@ -17,7 +17,8 @@ public sealed class TransferMoneyCommandValidator
 
         RuleFor(x => x)
             .Must(x => x.SourceAccountId != x.DestinationAccountId)
-            .WithMessage("Source and destination accounts must be different.");
+            .WithMessage(
+                "Source and destination accounts must be different.");
 
         RuleFor(x => x.Amount)
             .GreaterThan(0)
@@ -32,6 +33,7 @@ public sealed class TransferMoneyCommandValidator
         RuleFor(x => x.IdempotencyKey)
             .NotEmpty()
             .MaximumLength(100)
-            .WithMessage("Idempotency key is required and must not exceed 100 characters.");
+            .WithMessage(
+                "Idempotency key is required and must not exceed 100 characters.");
     }
 }
