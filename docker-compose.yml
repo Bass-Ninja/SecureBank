@@ -9,9 +9,7 @@ services:
       - "8080:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=securebank;Username=securebank;Password=securebank_dev_password"
-
       Keycloak__Authority: "http://keycloak:8080/realms/securebank"
     depends_on:
       postgres:
@@ -26,6 +24,8 @@ services:
       POSTGRES_DB: securebank
       POSTGRES_USER: securebank
       POSTGRES_PASSWORD: securebank_dev_password
+    ports:
+      - "15432:5432"
     volumes:
       - securebank-postgres-data:/var/lib/postgresql
     healthcheck:
