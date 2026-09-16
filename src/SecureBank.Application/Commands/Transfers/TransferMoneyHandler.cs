@@ -54,17 +54,17 @@ public sealed class TransferMoneyHandler(
             request.Amount,
             request.Currency);
 
+        var transfer = Transfer.Create(
+            userId,
+            sourceAccount.Id,
+            destinationAccount.Id,
+            amount,
+            request.IdempotencyKey);
+
         try
         {
             sourceAccount.Debit(amount);
             destinationAccount.Credit(amount);
-
-            var transfer = Transfer.Create(
-                userId,
-                sourceAccount.Id,
-                destinationAccount.Id,
-                amount,
-                request.IdempotencyKey);
 
             transfer.Complete();
 
@@ -80,6 +80,9 @@ public sealed class TransferMoneyHandler(
                       SqlState: PostgresErrorCodes.UniqueViolation
                   })
         {
+            dbContext.Transfers.Remove(transfer);
+            transfer.ClearDomainEvents();
+
             var concurrentTransfer = await dbContext.Transfers
                 .FirstOrDefaultAsync(
                     x => x.UserId == userId
