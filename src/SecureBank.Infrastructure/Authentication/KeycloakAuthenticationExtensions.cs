@@ -60,8 +60,8 @@ public static class KeycloakAuthenticationExtensions
         services.AddAuthorization(options =>
         {
             options.AddPolicy(
-                "BankStaff",
-                policy => policy.RequireRole(BankRoles.Staff));
+                AuthorizationPolicies.BankStaff,
+                policy => policy.Requirements.Add(new RoleRequirement(BankRoles.Staff)));
 
             options.AddPolicy(
                 AccountAccessAuthorizationHandler.PolicyName,
@@ -69,6 +69,7 @@ public static class KeycloakAuthenticationExtensions
         });
 
         services.AddScoped<IAuthorizationHandler, AccountAccessAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
 
         return services;
     }

@@ -6,4 +6,5 @@ public static class AuthorizationFailureReasons
     public const string NoHttpContext = "No HTTP context is available to resolve the resource from.";
     public const string ResourceNotResolved = "The resource could not be resolved from the request.";
     public const string NotResourceOwner = "The caller does not own this resource.";
+    public const string NotInRequiredRole = "The caller does not hold a required role.";
 }
