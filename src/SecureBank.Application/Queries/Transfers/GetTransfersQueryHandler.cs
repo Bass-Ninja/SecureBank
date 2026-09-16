@@ -3,7 +3,7 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using SecureBank.Application.Abstractions;
 using SecureBank.Application.Abstractions.Models;
-using SecureBank.Application.Queries.Transfers.Results;
+using SecureBank.Application.Abstractions.Queries.Transfers.Results;
 
 namespace SecureBank.Application.Queries.Transfers;
 

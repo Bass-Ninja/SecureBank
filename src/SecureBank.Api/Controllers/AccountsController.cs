@@ -2,8 +2,8 @@ using Mediator;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SecureBank.Api.Extensions;
+using SecureBank.Application.Abstractions.Queries.Accounts.Results;
 using SecureBank.Application.Queries.Accounts;
-using SecureBank.Application.Queries.Accounts.Results;
 using SecureBank.Infrastructure.Authentication;
 
 namespace SecureBank.Api.Controllers;

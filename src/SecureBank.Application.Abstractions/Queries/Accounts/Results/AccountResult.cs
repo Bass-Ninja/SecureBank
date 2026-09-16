@@ -1,4 +1,4 @@
-namespace SecureBank.Application.Queries.Accounts.Results;
+namespace SecureBank.Application.Abstractions.Queries.Accounts.Results;
 
 public sealed record AccountResult(
     Guid Id,

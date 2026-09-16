@@ -1,6 +1,6 @@
 using Mapster;
-using SecureBank.Application.Queries.Accounts.Results;
-using SecureBank.Application.Queries.Transfers.Results;
+using SecureBank.Application.Abstractions.Queries.Accounts.Results;
+using SecureBank.Application.Abstractions.Queries.Transfers.Results;
 using SecureBank.Domain.Entities;
 
 namespace SecureBank.Application.Abstractions.Mapping;

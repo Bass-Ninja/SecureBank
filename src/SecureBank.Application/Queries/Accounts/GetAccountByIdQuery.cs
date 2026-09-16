@@ -1,5 +1,5 @@
 using Mediator;
-using SecureBank.Application.Queries.Accounts.Results;
+using SecureBank.Application.Abstractions.Queries.Accounts.Results;
 
 namespace SecureBank.Application.Queries.Accounts;
 

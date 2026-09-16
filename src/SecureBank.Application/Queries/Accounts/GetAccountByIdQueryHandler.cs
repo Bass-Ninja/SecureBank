@@ -2,8 +2,8 @@ using Mapster;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using SecureBank.Application.Abstractions;
+using SecureBank.Application.Abstractions.Queries.Accounts.Results;
 using SecureBank.Application.Exceptions;
-using SecureBank.Application.Queries.Accounts.Results;
 
 namespace SecureBank.Application.Queries.Accounts;
 

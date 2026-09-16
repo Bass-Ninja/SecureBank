@@ -1,4 +1,4 @@
-namespace SecureBank.Application.Queries.Transfers.Results;
+namespace SecureBank.Application.Abstractions.Queries.Transfers.Results;
 public sealed record TransferResult(
     Guid Id,
     Guid SourceAccountId,
