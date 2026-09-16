@@ -1,0 +1,112 @@
+{
+  "realm": "securebank",
+  "displayName": "SecureBank",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+
+  "roles": {
+    "realm": [
+      {
+        "name": "customer",
+        "description": "SecureBank customer"
+      },
+      {
+        "name": "support",
+        "description": "SecureBank support user"
+      },
+      {
+        "name": "admin",
+        "description": "SecureBank administrator"
+      }
+    ]
+  },
+
+  "clients": [
+    {
+      "clientId": "securebank-api",
+      "name": "SecureBank API",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "bearerOnly": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false
+    },
+
+    {
+      "clientId": "securebank-swagger",
+      "name": "SecureBank Swagger",
+      "enabled": true,
+      "clientAuthenticatorType": "none",
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+
+      "redirectUris": [
+        "http://localhost:5000/swagger/oauth2-redirect.html",
+        "http://localhost:8080/swagger/oauth2-redirect.html",
+        "https://localhost:7056/swagger/oauth2-redirect.html"
+      ],
+
+      "webOrigins": [
+        "http://localhost:5000",
+        "http://localhost:8080",
+        "https://localhost:7056"
+      ],
+
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+
+      "protocolMappers": [
+        {
+          "name": "securebank-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "securebank-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+
+  "users": [
+    {
+      "id": "0406f376-1a90-45a8-a117-09a96c051983",
+      "username": "nina",
+      "firstName": "Nina",
+      "lastName": "SecureBank",
+      "email": "nina@securebank.local",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "SecureBank123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "customer"
+      ]
+    }
+  ]
+}

@@ -1,8 +1,11 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using SecureBank.Application.Exceptions;
 
-namespace SecureBank.Api.Exceptions;
+namespace SecureBank.Infrastructure.Behaviours;
 
 public sealed class GlobalExceptionHandler(
     ILogger<GlobalExceptionHandler> logger)
@@ -20,10 +23,10 @@ public sealed class GlobalExceptionHandler(
         var statusCode = exception switch
         {
             ValidationException => StatusCodes.Status400BadRequest,
+            ForbiddenException => StatusCodes.Status403Forbidden,
             InvalidOperationException => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status500InternalServerError
         };
-
         var problemDetails = new ProblemDetails
         {
             Status = statusCode,

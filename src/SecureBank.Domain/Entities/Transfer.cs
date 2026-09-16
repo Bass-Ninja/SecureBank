@@ -11,12 +11,14 @@ public sealed class Transfer
 
     private Transfer(
         Guid id,
+        Guid userId,
         Guid sourceAccountId,
         Guid destinationAccountId,
         Money amount,
         string idempotencyKey)
     {
         Id = id;
+        UserId = userId;
         SourceAccountId = sourceAccountId;
         DestinationAccountId = destinationAccountId;
         Amount = amount;
@@ -26,6 +28,8 @@ public sealed class Transfer
     }
 
     public Guid Id { get; private set; }
+    
+    public Guid UserId { get; private set; }
 
     public Guid SourceAccountId { get; private set; }
 
@@ -44,37 +48,49 @@ public sealed class Transfer
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
     public static Transfer Create(
+        Guid userId,
         Guid sourceAccountId,
         Guid destinationAccountId,
         Money amount,
         string idempotencyKey)
     {
         if (sourceAccountId == Guid.Empty)
+        {
             throw new ArgumentException(
                 "Source account is required.",
                 nameof(sourceAccountId));
+        }
 
         if (destinationAccountId == Guid.Empty)
+        {
             throw new ArgumentException(
                 "Destination account is required.",
                 nameof(destinationAccountId));
+        }
 
         if (sourceAccountId == destinationAccountId)
+        {
             throw new InvalidOperationException(
                 "Source and destination accounts must be different.");
+        }
 
         if (amount.Amount <= 0)
+        {
             throw new ArgumentOutOfRangeException(
                 nameof(amount),
                 "Transfer amount must be greater than zero.");
+        }
 
         if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
             throw new ArgumentException(
                 "Idempotency key is required.",
                 nameof(idempotencyKey));
+        }
 
         return new Transfer(
             Guid.NewGuid(),
+            userId,
             sourceAccountId,
             destinationAccountId,
             amount,
@@ -84,8 +100,10 @@ public sealed class Transfer
     public void Complete()
     {
         if (Status != Enums.TransferStatus.Pending)
+        {
             throw new InvalidOperationException(
                 "Only pending transfers can be completed.");
+        }
 
         Status = Enums.TransferStatus.Completed;
 
@@ -100,8 +118,10 @@ public sealed class Transfer
     public void Fail()
     {
         if (Status != Enums.TransferStatus.Pending)
+        {
             throw new InvalidOperationException(
                 "Only pending transfers can be failed.");
+        }
 
         Status = Enums.TransferStatus.Failed;
     }

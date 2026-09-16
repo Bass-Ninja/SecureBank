@@ -17,8 +17,7 @@ public sealed class OAuthSecuritySchemeTransformer(
         var authenticationSchemes =
             await authenticationSchemeProvider.GetAllSchemesAsync();
 
-        if (!authenticationSchemes.Any(
-                scheme => scheme.Name == "Bearer"))
+        if (authenticationSchemes.All(scheme => scheme.Name != "Bearer"))
         {
             return;
         }

@@ -11,9 +11,11 @@ public static class DevelopmentDataSeeder
         CancellationToken cancellationToken = default)
     {
         if (await dbContext.Accounts.AnyAsync(cancellationToken))
+        {
             return;
+        }
 
-        var user1Id = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var user1Id = Guid.Parse("0406f376-1a90-45a8-a117-09a96c051983");
         var user2Id = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
         var account1 = Account.Create(

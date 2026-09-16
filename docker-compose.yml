@@ -39,7 +39,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.3
     container_name: securebank-keycloak
-    command: start-dev
+    command: start-dev --import-realm
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin_dev_password
@@ -47,6 +47,7 @@ services:
       - "8081:8080"
     volumes:
       - securebank-keycloak-data:/opt/keycloak/data
+      - ./infrastructure/keycloak:/opt/keycloak/data/import:ro
 
 volumes:
   securebank-postgres-data:

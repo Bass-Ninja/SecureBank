@@ -12,6 +12,9 @@ public sealed class TransferConfiguration
         builder.ToTable("transfers");
 
         builder.HasKey(x => x.Id);
+        
+        builder.Property(x => x.UserId)
+            .IsRequired();
 
         builder.Property(x => x.SourceAccountId)
             .IsRequired();
@@ -22,10 +25,18 @@ public sealed class TransferConfiguration
         builder.Property(x => x.Status)
             .IsRequired()
             .HasConversion<string>();
-
+        
+        
         builder.Property(x => x.IdempotencyKey)
             .IsRequired()
             .HasMaxLength(100);
+        
+        builder.HasIndex(x => new
+            {
+                x.UserId,
+                x.IdempotencyKey
+            })
+            .IsUnique();
 
         builder.Property(x => x.CreatedAt)
             .IsRequired();
@@ -44,9 +55,6 @@ public sealed class TransferConfiguration
                     .HasMaxLength(3)
                     .IsRequired();
             });
-
-        builder.HasIndex(x => x.IdempotencyKey)
-            .IsUnique();
 
         builder.HasIndex(x => x.SourceAccountId);
         builder.HasIndex(x => x.DestinationAccountId);

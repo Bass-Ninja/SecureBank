@@ -1,6 +1,7 @@
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using SecureBank.Application.Abstractions;
+using SecureBank.Application.Exceptions;
 using SecureBank.Domain.Entities;
 using SecureBank.Domain.ValueObjects;
 
@@ -11,11 +12,21 @@ public sealed class TransferMoneyHandler(
     IUserContext userContext)
     : IRequestHandler<TransferMoneyCommand, Guid>
 {
-    public async ValueTask<Guid> Handle(
-        TransferMoneyCommand request,
-        CancellationToken cancellationToken)
+    public async ValueTask<Guid> Handle(TransferMoneyCommand request, CancellationToken cancellationToken)
     {
         var userId = userContext.UserId;
+
+        var existingTransfer = await dbContext.Transfers
+            .FirstOrDefaultAsync(
+                x => x.UserId == userId
+                     && x.IdempotencyKey == request.IdempotencyKey,
+                cancellationToken);
+
+
+        if (existingTransfer is not null)
+        {
+            return existingTransfer.Id;
+        }
 
         var sourceAccount = await dbContext.Accounts
             .FirstOrDefaultAsync(
@@ -24,8 +35,9 @@ public sealed class TransferMoneyHandler(
                 cancellationToken);
 
         if (sourceAccount is null)
-            throw new InvalidOperationException(
-                "Source account was not found.");
+        {
+            throw new ForbiddenException("You are not allowed to transfer from this account.");
+        }
                 
         var destinationAccount = await dbContext.Accounts
             .FirstOrDefaultAsync(
@@ -33,8 +45,9 @@ public sealed class TransferMoneyHandler(
                 cancellationToken);
 
         if (destinationAccount is null)
-            throw new InvalidOperationException(
-                "Destination account was not found.");
+        {
+            throw new InvalidOperationException("Destination account was not found.");
+        }
 
         var amount = Money.Create(
             request.Amount,
@@ -44,6 +57,7 @@ public sealed class TransferMoneyHandler(
         destinationAccount.Credit(amount);
 
         var transfer = Transfer.Create(
+            userId,
             sourceAccount.Id,
             destinationAccount.Id,
             amount,

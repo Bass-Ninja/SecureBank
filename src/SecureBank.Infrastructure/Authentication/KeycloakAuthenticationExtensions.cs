@@ -41,26 +41,6 @@ public static class KeycloakAuthenticationExtensions
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true
                     };
-
-                options.Events = new JwtBearerEvents
-                {
-                    OnAuthenticationFailed = context =>
-                    {
-                        Console.WriteLine(
-                            $"JWT authentication failed: {context.Exception}");
-
-                        return Task.CompletedTask;
-                    },
-
-                    OnTokenValidated = context =>
-                    {
-                        Console.WriteLine(
-                            $"JWT validated for: " +
-                            $"{context.Principal?.FindFirst("sub")?.Value}");
-
-                        return Task.CompletedTask;
-                    }
-                };
             });
 
         services.AddAuthorization();
