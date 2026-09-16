@@ -6,6 +6,7 @@ COPY ["Directory.Packages.props", "."]
 
 COPY ["src/SecureBank.Api/SecureBank.Api.csproj", "src/SecureBank.Api/"]
 COPY ["src/SecureBank.Application/SecureBank.Application.csproj", "src/SecureBank.Application/"]
+COPY ["src/SecureBank.Application.Abstractions/SecureBank.Application.Abstractions.csproj", "src/SecureBank.Application.Abstractions/"]
 COPY ["src/SecureBank.Domain/SecureBank.Domain.csproj", "src/SecureBank.Domain/"]
 COPY ["src/SecureBank.Infrastructure/SecureBank.Infrastructure.csproj", "src/SecureBank.Infrastructure/"]
 
