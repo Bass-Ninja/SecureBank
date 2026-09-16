@@ -16,10 +16,12 @@ public sealed class GetAccountByIdQueryHandler(
         GetAccountByIdQuery request,
         CancellationToken cancellationToken)
     {
+        var isBankStaff = userContext.IsBankStaff();
+
         var account = await dbContext.Accounts
             .AsNoTracking()
             .Where(x => x.Id == request.AccountId
-                        && x.UserId == userContext.UserId)
+                        && (isBankStaff || x.UserId == userContext.UserId))
             .ProjectToType<AccountResult>()
             .FirstOrDefaultAsync(cancellationToken);
 

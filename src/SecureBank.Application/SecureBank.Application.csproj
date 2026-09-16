@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="SecureBank.IntegrationTests" />
+    <InternalsVisibleTo Include="SecureBank.UnitTests" />
   </ItemGroup>
     
   <PropertyGroup>

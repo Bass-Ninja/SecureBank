@@ -26,6 +26,13 @@
     ]
   },
 
+  "groups": [
+    {
+      "name": "bank-staff",
+      "realmRoles": ["support"]
+    }
+  ],
+
   "clients": [
     {
       "clientId": "securebank-api",
@@ -107,6 +114,23 @@
       "realmRoles": [
         "customer"
       ]
+    },
+    {
+      "id": "6f0a8b0e-2b9a-4c9f-9d2a-8a9a2e6f9b21",
+      "username": "staff1",
+      "firstName": "Staff",
+      "lastName": "SecureBank",
+      "email": "staff1@securebank.local",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "SecureBank123!",
+          "temporary": false
+        }
+      ],
+      "groups": ["/bank-staff"]
     }
   ]
 }

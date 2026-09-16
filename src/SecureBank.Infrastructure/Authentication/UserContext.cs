@@ -25,4 +25,9 @@ public sealed class UserContext(
             return parsedUserId;
         }
     }
+
+    public bool IsInRole(string role)
+    {
+        return httpContextAccessor.HttpContext?.User.IsInRole(role) ?? false;
+    }
 }

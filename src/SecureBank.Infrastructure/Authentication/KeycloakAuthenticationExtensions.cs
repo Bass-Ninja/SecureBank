@@ -1,7 +1,10 @@
+using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using SecureBank.Application.Abstractions;
 
 namespace SecureBank.Infrastructure.Authentication;
 
@@ -41,10 +44,54 @@ public static class KeycloakAuthenticationExtensions
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true
                     };
+
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = context =>
+                    {
+                        MapRealmRolesToRoleClaims(context.Principal);
+
+                        return Task.CompletedTask;
+                    }
+                };
             });
 
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy(
+                "BankStaff",
+                policy => policy.RequireRole(BankRoles.Staff));
+        });
 
         return services;
+    }
+    
+    private static void MapRealmRolesToRoleClaims(ClaimsPrincipal? principal)
+    {
+        var identity = principal?.Identity as ClaimsIdentity;
+
+        var realmAccess = principal?.FindFirst("realm_access")?.Value;
+
+        if (identity is null || realmAccess is null)
+        {
+            return;
+        }
+
+        using var document = JsonDocument.Parse(realmAccess);
+
+        if (!document.RootElement.TryGetProperty("roles", out var roles))
+        {
+            return;
+        }
+
+        foreach (var role in roles.EnumerateArray())
+        {
+            var roleName = role.GetString();
+
+            if (!string.IsNullOrWhiteSpace(roleName))
+            {
+                identity.AddClaim(new Claim(ClaimTypes.Role, roleName));
+            }
+        }
     }
 }
