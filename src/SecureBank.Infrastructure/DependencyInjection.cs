@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SecureBank.Application.Abstractions;
+using SecureBank.Application.Abstractions.Database;
 using SecureBank.Infrastructure.Authentication;
 using SecureBank.Infrastructure.Behaviours;
 using SecureBank.Infrastructure.Documentation;
@@ -45,6 +46,10 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
 
         services.AddScoped<ISecureBankDbContext>(
+            provider =>
+                provider.GetRequiredService<SecureBankDbContext>());
+
+        services.AddScoped<ITransactionalContext>(
             provider =>
                 provider.GetRequiredService<SecureBankDbContext>());
 
