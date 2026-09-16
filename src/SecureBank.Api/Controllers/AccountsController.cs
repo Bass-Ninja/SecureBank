@@ -29,13 +29,4 @@ public sealed class AccountsController(IMediator sender) : ControllerBase
 
         return Ok(result);
     }
-
-    [HttpGet("by-user/{userId:guid}")]
-    [Authorize(Policy = "BankStaff")]
-    public async Task<IActionResult> GetByUserId(Guid userId, CancellationToken cancellationToken)
-    {
-        var result = await sender.Send(new GetAccountsByUserIdQuery(userId), cancellationToken);
-
-        return result.ToActionResult();
-    }
 }
