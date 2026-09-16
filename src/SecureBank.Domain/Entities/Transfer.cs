@@ -1,3 +1,4 @@
+using SecureBank.Domain.Enums;
 using SecureBank.Domain.ValueObjects;
 using SecureBank.Domain.Events;
 
@@ -23,7 +24,7 @@ public sealed class Transfer
         DestinationAccountId = destinationAccountId;
         Amount = amount;
         IdempotencyKey = idempotencyKey;
-        Status = Enums.TransferStatus.Pending;
+        Status = TransferStatus.Pending;
         CreatedAt = DateTimeOffset.UtcNow;
     }
 
@@ -39,7 +40,7 @@ public sealed class Transfer
 
     public string IdempotencyKey { get; private set; } = null!;
 
-    public Enums.TransferStatus Status { get; private set; }
+    public TransferStatus Status { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -99,13 +100,13 @@ public sealed class Transfer
 
     public void Complete()
     {
-        if (Status != Enums.TransferStatus.Pending)
+        if (Status != TransferStatus.Pending)
         {
             throw new InvalidOperationException(
                 "Only pending transfers can be completed.");
         }
 
-        Status = Enums.TransferStatus.Completed;
+        Status = TransferStatus.Completed;
 
         _domainEvents.Add(
             new TransferCompletedEvent(
@@ -117,12 +118,12 @@ public sealed class Transfer
 
     public void Fail()
     {
-        if (Status != Enums.TransferStatus.Pending)
+        if (Status != TransferStatus.Pending)
         {
             throw new InvalidOperationException(
                 "Only pending transfers can be failed.");
         }
 
-        Status = Enums.TransferStatus.Failed;
+        Status = TransferStatus.Failed;
     }
 }

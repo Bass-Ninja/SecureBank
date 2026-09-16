@@ -8,10 +8,14 @@ public sealed record Money
     private Money(decimal amount, string currency)
     {
         if (amount < 0)
+        {
             throw new ArgumentOutOfRangeException(nameof(amount), "Money amount cannot be negative.");
+        }
 
         if (string.IsNullOrWhiteSpace(currency))
+        {
             throw new ArgumentException("Currency is required.", nameof(currency));
+        }
 
         Currency = currency.ToUpperInvariant();
         Amount = amount;
@@ -35,7 +39,9 @@ public sealed record Money
         EnsureSameCurrency(other);
 
         if (other.Amount > Amount)
+        {
             throw new InvalidOperationException("Insufficient funds.");
+        }
 
         return new Money(Amount - other.Amount, Currency);
     }
@@ -43,7 +49,9 @@ public sealed record Money
     private void EnsureSameCurrency(Money other)
     {
         if (Currency != other.Currency)
+        {
             throw new InvalidOperationException(
                 $"Currency mismatch: {Currency} vs {other.Currency}.");
+        }
     }
 }
