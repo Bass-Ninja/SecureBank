@@ -70,6 +70,7 @@ public static class DependencyInjection
         services.AddOpenApi(options =>
         {
             options.AddDocumentTransformer<OAuthSecuritySchemeTransformer>();
+            options.AddSchemaTransformer<NullableEnumSchemaTransformer>();
         });
 
         return services;
