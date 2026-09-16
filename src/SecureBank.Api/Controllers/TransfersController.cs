@@ -20,7 +20,7 @@ public sealed class TransfersController(IMediator sender) : ControllerBase
     public async Task<IActionResult> Get([FromQuery] GetTransfersRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await sender.Send(new GetTransfersQuery(request.Page, request.PageSize, request.SortBy, request.SortDirection), cancellationToken);
+        var result = await sender.Send(new GetTransfersQuery(request.Page, request.PageSize, request.SortBy, request.SortDirection, request.AccountId, request.Status), cancellationToken);
 
         return result.ToActionResult<PagedResult<TransferResult>, PagedResult<TransferResponse>>();
     }

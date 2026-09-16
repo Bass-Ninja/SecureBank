@@ -22,7 +22,8 @@ public sealed class GetTransfersHandler(
 
         var query = dbContext.Transfers
             .AsNoTracking()
-            .Where(x => x.UserId == userContext.UserId);
+            .Where(x => x.UserId == userContext.UserId)
+            .Apply(request);
 
         var totalItems = await query.CountAsync(
             cancellationToken);
