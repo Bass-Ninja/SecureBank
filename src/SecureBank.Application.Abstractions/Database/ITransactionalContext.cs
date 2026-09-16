@@ -1,3 +1,5 @@
+using SecureBank.Domain.Events;
+
 namespace SecureBank.Application.Abstractions.Database;
 
 public interface ITransactionalContext
@@ -7,4 +9,6 @@ public interface ITransactionalContext
     Task CommitTransactionAsync(CancellationToken cancellationToken = default);
 
     Task RollbackTransactionAsync(CancellationToken cancellationToken = default);
+    
+    IReadOnlyCollection<IDomainEvent> DequeueDomainEvents();
 }

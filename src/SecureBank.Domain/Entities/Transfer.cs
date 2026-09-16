@@ -1,10 +1,11 @@
+using SecureBank.Domain.Abstractions;
 using SecureBank.Domain.Enums;
 using SecureBank.Domain.ValueObjects;
 using SecureBank.Domain.Events;
 
 namespace SecureBank.Domain.Entities;
 
-public sealed class Transfer
+public sealed class Transfer : Entity
 {
     private Transfer()
     {
@@ -43,10 +44,6 @@ public sealed class Transfer
     public TransferStatus Status { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
-
-    private readonly List<IDomainEvent> _domainEvents = [];
-
-    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
     public static Transfer Create(
         Guid userId,
@@ -108,7 +105,7 @@ public sealed class Transfer
 
         Status = TransferStatus.Completed;
 
-        _domainEvents.Add(
+        Raise(
             new TransferCompletedEvent(
                 Id,
                 SourceAccountId,

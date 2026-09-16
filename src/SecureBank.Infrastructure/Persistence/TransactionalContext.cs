@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SecureBank.Application.Abstractions.Database;
+using SecureBank.Domain.Abstractions;
+using SecureBank.Domain.Events;
 
 namespace SecureBank.Infrastructure.Persistence;
 
@@ -50,5 +52,24 @@ public class TransactionalContext<TContext>(
         await _currentTransaction.DisposeAsync();
 
         _currentTransaction = null;
+    }
+
+    public IReadOnlyCollection<IDomainEvent> DequeueDomainEvents()
+    {
+        var entitiesWithEvents = ChangeTracker.Entries<Entity>()
+            .Select(x => x.Entity)
+            .Where(x => x.DomainEvents.Count > 0)
+            .ToList();
+
+        var domainEvents = entitiesWithEvents
+            .SelectMany(x => x.DomainEvents)
+            .ToList();
+
+        foreach (var entity in entitiesWithEvents)
+        {
+            entity.ClearDomainEvents();
+        }
+
+        return domainEvents;
     }
 }

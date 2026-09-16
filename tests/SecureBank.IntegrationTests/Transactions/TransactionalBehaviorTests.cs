@@ -36,7 +36,7 @@ public sealed class TransactionalBehaviorTests(PostgresFixture fixture) : IClass
 
         ITransactionalContext transactionalContext = context;
 
-        var behavior = new TransactionalBehavior<TestRequest, Unit>([transactionalContext]);
+        var behavior = new TransactionalBehavior<TestRequest, Unit>([transactionalContext], new NoOpPublisher());
 
         var request = new TestRequest();
 
@@ -72,4 +72,22 @@ public sealed class TransactionalBehaviorTests(PostgresFixture fixture) : IClass
     }
 
     private sealed record TestRequest : IRequest<Unit>;
+
+    private sealed class NoOpPublisher : IPublisher
+    {
+        public ValueTask Publish<TNotification>(
+            TNotification notification,
+            CancellationToken cancellationToken = default)
+            where TNotification : INotification
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask Publish(
+            object notification,
+            CancellationToken cancellationToken = default)
+        {
+            return ValueTask.CompletedTask;
+        }
+    }
 }
