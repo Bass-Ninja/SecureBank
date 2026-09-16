@@ -8,20 +8,16 @@ using SecureBank.Application.Queries.Accounts.Results;
 namespace SecureBank.Application.Queries.Accounts;
 
 public sealed class GetAccountByIdQueryHandler(
-    ISecureBankDbContext dbContext,
-    IUserContext userContext)
+    ISecureBankDbContext dbContext)
     : IRequestHandler<GetAccountByIdQuery, AccountResult>
 {
     public async ValueTask<AccountResult> Handle(
         GetAccountByIdQuery request,
         CancellationToken cancellationToken)
     {
-        var isBankStaff = userContext.IsBankStaff();
-
         var account = await dbContext.Accounts
             .AsNoTracking()
-            .Where(x => x.Id == request.AccountId
-                        && (isBankStaff || x.UserId == userContext.UserId))
+            .Where(x => x.Id == request.AccountId)
             .ProjectToType<AccountResult>()
             .FirstOrDefaultAsync(cancellationToken);
 

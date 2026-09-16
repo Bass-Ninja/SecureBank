@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -61,11 +62,17 @@ public static class KeycloakAuthenticationExtensions
             options.AddPolicy(
                 "BankStaff",
                 policy => policy.RequireRole(BankRoles.Staff));
+
+            options.AddPolicy(
+                AccountAccessAuthorizationHandler.PolicyName,
+                policy => policy.Requirements.Add(new AccountAccessRequirement()));
         });
+
+        services.AddScoped<IAuthorizationHandler, AccountAccessAuthorizationHandler>();
 
         return services;
     }
-    
+
     private static void MapRealmRolesToRoleClaims(ClaimsPrincipal? principal)
     {
         var identity = principal?.Identity as ClaimsIdentity;

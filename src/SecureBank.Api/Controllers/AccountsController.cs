@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using SecureBank.Api.Extensions;
 using SecureBank.Application.Queries.Accounts;
 using SecureBank.Application.Queries.Accounts.Results;
+using SecureBank.Infrastructure.Authentication;
 
 namespace SecureBank.Api.Controllers;
 
@@ -21,6 +22,7 @@ public sealed class AccountsController(IMediator sender) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = AccountAccessAuthorizationHandler.PolicyName)]
     public async Task<ActionResult<AccountResult>> GetById(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetAccountByIdQuery(id), cancellationToken);
