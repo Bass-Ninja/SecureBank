@@ -1,14 +1,30 @@
 using Mediator;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SecureBank.Api.Extensions;
+using SecureBank.Api.Models;
 using SecureBank.Api.Models.Transfers;
+using SecureBank.Application.Abstractions.Models;
 using SecureBank.Application.Commands.Transfers;
+using SecureBank.Application.Queries.Transfers;
+using SecureBank.Application.Queries.Transfers.Results;
 
 namespace SecureBank.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/transfers")]
-public sealed class TransfersController(IMediator mediator) : ControllerBase
+public sealed class TransfersController(IMediator sender) : ControllerBase
 {
+    [HttpGet]
+    public async Task<IActionResult> Get([FromQuery] GetTransfersRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await sender.Send(new GetTransfersQuery(request.Page, request.PageSize, request.SortBy, request.SortDirection), cancellationToken);
+
+        return result.ToActionResult<PagedResult<TransferResult>, PagedResult<TransferResponse>>();
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] CreateTransferRequest request,
@@ -22,9 +38,7 @@ public sealed class TransfersController(IMediator mediator) : ControllerBase
             request.Currency,
             idempotencyKey);
 
-        var transferId = await mediator.Send(
-            command,
-            cancellationToken);
+        var transferId = await sender.Send(command, cancellationToken);
 
         return Ok(new
         {
@@ -32,4 +46,3 @@ public sealed class TransfersController(IMediator mediator) : ControllerBase
         });
     }
 }
-
