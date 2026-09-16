@@ -1,5 +1,6 @@
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using SecureBank.Application.Abstractions;
 using SecureBank.Application.Exceptions;
 using SecureBank.Domain.Entities;
@@ -53,22 +54,49 @@ public sealed class TransferMoneyHandler(
             request.Amount,
             request.Currency);
 
-        sourceAccount.Debit(amount);
-        destinationAccount.Credit(amount);
+        try
+        {
+            sourceAccount.Debit(amount);
+            destinationAccount.Credit(amount);
 
-        var transfer = Transfer.Create(
-            userId,
-            sourceAccount.Id,
-            destinationAccount.Id,
-            amount,
-            request.IdempotencyKey);
+            var transfer = Transfer.Create(
+                userId,
+                sourceAccount.Id,
+                destinationAccount.Id,
+                amount,
+                request.IdempotencyKey);
 
-        transfer.Complete();
+            transfer.Complete();
 
-        dbContext.Transfers.Add(transfer);
+            dbContext.Transfers.Add(transfer);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        return transfer.Id;
+            return transfer.Id;
+        }
+        catch (DbUpdateException ex)
+            when (ex.InnerException is PostgresException
+                  {
+                      SqlState: PostgresErrorCodes.UniqueViolation
+                  })
+        {
+            var concurrentTransfer = await dbContext.Transfers
+                .FirstOrDefaultAsync(
+                    x => x.UserId == userId
+                         && x.IdempotencyKey == request.IdempotencyKey,
+                    cancellationToken);
+
+            if (concurrentTransfer is not null)
+            {
+                return concurrentTransfer.Id;
+            }
+
+            throw;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConcurrencyException(
+                "The account was modified by another transaction. Please retry.");
+        }
     }
 }

@@ -25,6 +25,7 @@ public sealed class GlobalExceptionHandler(
             ValidationException => StatusCodes.Status400BadRequest,
             ForbiddenException => StatusCodes.Status403Forbidden,
             InvalidOperationException => StatusCodes.Status400BadRequest,
+            ConcurrencyException => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status500InternalServerError
         };
         var problemDetails = new ProblemDetails

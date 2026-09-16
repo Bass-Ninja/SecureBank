@@ -44,5 +44,8 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         builder.HasIndex(x => x.UserId);
         builder.HasIndex(x => x.AccountNumber)
             .IsUnique();
+        
+        builder.Property(x => x.Version)
+            .IsRowVersion();
     }
 }
