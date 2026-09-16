@@ -1,5 +1,6 @@
 using Mapster;
 using SecureBank.Application.Abstractions.Queries.Accounts.Results;
+using SecureBank.Application.Abstractions.Queries.Beneficiaries.Results;
 using SecureBank.Application.Abstractions.Queries.Transfers.Results;
 using SecureBank.Domain.Entities;
 
@@ -18,5 +19,7 @@ public sealed class MappingConfiguration : IRegister
             .Map(dest => dest.Amount, src => src.Amount.Amount)
             .Map(dest => dest.Currency, src => src.Amount.Currency)
             .Map(dest => dest.Status, src => src.Status.ToString());
+
+        config.NewConfig<Beneficiary, BeneficiaryResult>();
     }
 }

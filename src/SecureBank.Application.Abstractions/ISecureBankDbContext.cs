@@ -8,4 +8,5 @@ public interface ISecureBankDbContext : IUnitOfWork
 {
     DbSet<Account> Accounts { get; }
     DbSet<Transfer> Transfers { get; }
+    DbSet<Beneficiary> Beneficiaries { get; }
 }

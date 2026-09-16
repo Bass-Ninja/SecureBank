@@ -10,6 +10,8 @@ public sealed class SecureBankDbContext(DbContextOptions<SecureBankDbContext> op
 
     public DbSet<Transfer> Transfers => Set<Transfer>();
 
+    public DbSet<Beneficiary> Beneficiaries => Set<Beneficiary>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(
