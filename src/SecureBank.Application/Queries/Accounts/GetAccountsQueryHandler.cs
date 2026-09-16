@@ -1,3 +1,4 @@
+using Mapster;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using SecureBank.Application.Abstractions;
@@ -21,13 +22,7 @@ public sealed class GetAccountsQueryHandler(
             .AsNoTracking()
             .Where(x => x.UserId == userContext.UserId)
             .OrderBy(x => x.CreatedAt)
-            .Select(x => new AccountResult(
-                x.Id,
-                x.AccountNumber,
-                x.Balance.Amount,
-                x.Balance.Currency,
-                x.Status.ToString(),
-                x.CreatedAt))
+            .ProjectToType<AccountResult>()
             .ToListAsync(cancellationToken);
 
         return Result<IReadOnlyCollection<AccountResult>>.Ok(accounts);

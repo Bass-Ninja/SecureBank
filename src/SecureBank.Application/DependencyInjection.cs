@@ -1,6 +1,8 @@
 using FluentValidation;
+using Mapster;
 using Mediator;
 using Microsoft.Extensions.DependencyInjection;
+using SecureBank.Application.Abstractions.Mapping;
 using SecureBank.Application.Behaviors;
 
 namespace SecureBank.Application;
@@ -14,9 +16,12 @@ public static class DependencyInjection
         {
             options.ServiceLifetime = ServiceLifetime.Scoped;
         });
-        
+
         services.AddValidatorsFromAssembly(
             typeof(DependencyInjection).Assembly);
+
+        TypeAdapterConfig.GlobalSettings.Scan(
+            typeof(MappingConfiguration).Assembly);
 
         services.AddTransient(
             typeof(IPipelineBehavior<,>),

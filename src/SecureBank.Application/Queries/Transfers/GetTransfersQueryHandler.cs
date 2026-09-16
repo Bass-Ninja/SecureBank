@@ -1,3 +1,4 @@
+using Mapster;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using SecureBank.Application.Abstractions;
@@ -32,14 +33,7 @@ public sealed class GetTransfersHandler(
             .OrderByDescending(x => x.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(x => new TransferResult(
-                x.Id,
-                x.SourceAccountId,
-                x.DestinationAccountId,
-                x.Amount.Amount,
-                x.Amount.Currency,
-                x.Status.ToString(),
-                x.CreatedAt))
+            .ProjectToType<TransferResult>()
             .ToListAsync(cancellationToken);
 
         return Result<PagedResult<TransferResult>>.Ok(

@@ -2,12 +2,9 @@ using Mediator;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SecureBank.Api.Extensions;
-using SecureBank.Api.Models;
 using SecureBank.Api.Models.Transfers;
-using SecureBank.Application.Abstractions.Models;
 using SecureBank.Application.Commands.Transfers;
 using SecureBank.Application.Queries.Transfers;
-using SecureBank.Application.Queries.Transfers.Results;
 
 namespace SecureBank.Api.Controllers;
 
@@ -22,7 +19,7 @@ public sealed class TransfersController(IMediator sender) : ControllerBase
     {
         var result = await sender.Send(new GetTransfersQuery(request.Page, request.PageSize, request.SortBy, request.SortDirection, request.AccountId, request.Status), cancellationToken);
 
-        return result.ToActionResult<PagedResult<TransferResult>, PagedResult<TransferResponse>>();
+        return result.ToActionResult();
     }
 
     [HttpPost]

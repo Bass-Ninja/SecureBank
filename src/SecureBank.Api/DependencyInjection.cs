@@ -1,7 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Mapster;
-using SecureBank.Api.Abstractions.Infrastructure;
 
 namespace SecureBank.Api;
 
@@ -22,10 +20,6 @@ public static class DependencyInjection
         {
             options.LowercaseUrls = true;
         });
-        
-        services.AddMapster();
-
-        TypeAdapterConfig.GlobalSettings.Scan(typeof(MappingConfiguration).Assembly);
 
         return services;
     }
