@@ -4,14 +4,8 @@ using SecureBank.Domain.Entities;
 
 namespace SecureBank.Infrastructure.Persistence;
 
-public sealed class SecureBankDbContext : DbContext, ISecureBankDbContext
-{
-    public SecureBankDbContext(
-        DbContextOptions<SecureBankDbContext> options)
-        : base(options)
-    {
-    }
-
+public sealed class SecureBankDbContext(DbContextOptions<SecureBankDbContext> options) : TransactionalContext<SecureBankDbContext>(options), ISecureBankDbContext
+{ 
     public DbSet<Account> Accounts => Set<Account>();
 
     public DbSet<Transfer> Transfers => Set<Transfer>();
