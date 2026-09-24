@@ -9,6 +9,7 @@ using SecureBank.Application.Abstractions.Database;
 using SecureBank.Infrastructure.Authentication;
 using SecureBank.Infrastructure.Behaviours;
 using SecureBank.Infrastructure.Documentation;
+using SecureBank.Infrastructure.Health;
 using SecureBank.Infrastructure.Persistence;
 
 namespace SecureBank.Infrastructure;
@@ -27,6 +28,11 @@ public static class DependencyInjection
         services
             .AddExceptionHandler<GlobalExceptionHandler>()
             .AddProblemDetails();
+
+        services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>(
+                "database",
+                tags: ["ready"]);
         
         services.AddHostedService<MigrationHostedService>();
 

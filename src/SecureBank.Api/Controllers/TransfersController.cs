@@ -1,6 +1,7 @@
 using Mediator;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SecureBank.Api.Extensions;
 using SecureBank.Api.Models.Transfers;
 using SecureBank.Application.Commands.Transfers;
@@ -23,6 +24,7 @@ public sealed class TransfersController(IMediator sender) : ControllerBase
     }
 
     [HttpPost]
+    [EnableRateLimiting(RateLimitingPolicies.MoneyMovement)]
     public async Task<IActionResult> Create(
         [FromBody] CreateTransferRequest request,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,

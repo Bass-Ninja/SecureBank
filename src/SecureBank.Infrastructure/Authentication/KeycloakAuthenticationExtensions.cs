@@ -27,13 +27,17 @@ public static class KeycloakAuthenticationExtensions
             ?? throw new InvalidOperationException(
                 "Keycloak audience is not configured.");
 
+        var requireHttpsMetadata = configuration.GetValue(
+            "Keycloak:RequireHttpsMetadata",
+            true);
+
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
                 options.Authority = authority;
                 options.Audience = audience;
-                options.RequireHttpsMetadata = false;
+                options.RequireHttpsMetadata = requireHttpsMetadata;
 
                 options.TokenValidationParameters =
                     new TokenValidationParameters

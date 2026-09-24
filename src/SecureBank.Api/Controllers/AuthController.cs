@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,11 +12,16 @@ public sealed class AuthController : ControllerBase
     [HttpGet("me")]
     public IActionResult Me()
     {
-        return Ok(
-            User.Claims.Select(x => new
-            {
-                x.Type,
-                x.Value
-            }));
+        return Ok(new
+        {
+            Id = User.FindFirstValue(ClaimTypes.NameIdentifier),
+            Username = User.FindFirstValue("preferred_username"),
+            Email = User.FindFirstValue(ClaimTypes.Email)
+                ?? User.FindFirstValue("email"),
+            Roles = User.FindAll(ClaimTypes.Role)
+                .Select(claim => claim.Value)
+                .Distinct()
+                .Order()
+        });
     }
 }

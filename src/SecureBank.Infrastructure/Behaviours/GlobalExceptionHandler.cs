@@ -32,9 +32,14 @@ public sealed class GlobalExceptionHandler(
         var problemDetails = new ProblemDetails
         {
             Status = statusCode,
-            Title = statusCode == StatusCodes.Status400BadRequest
-                ? "Request failed."
-                : "An unexpected error occurred.",
+            Title = statusCode switch
+            {
+                StatusCodes.Status400BadRequest => "Request validation failed.",
+                StatusCodes.Status403Forbidden => "Access forbidden.",
+                StatusCodes.Status404NotFound => "Resource not found.",
+                StatusCodes.Status409Conflict => "Request conflict.",
+                _ => "An unexpected error occurred."
+            },
             Detail = statusCode == StatusCodes.Status500InternalServerError
                 ? null
                 : exception.Message,
