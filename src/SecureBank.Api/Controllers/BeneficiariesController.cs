@@ -26,7 +26,7 @@ public sealed class BeneficiariesController(IMediator sender) : ControllerBase
         [FromBody] AddBeneficiaryRequest request,
         CancellationToken cancellationToken)
     {
-        var command = new AddBeneficiaryCommand(request.AccountId, request.Nickname);
+        var command = new AddBeneficiaryCommand(request.AccountNumber, request.Nickname);
 
         var beneficiaryId = await sender.Send(command, cancellationToken);
 
