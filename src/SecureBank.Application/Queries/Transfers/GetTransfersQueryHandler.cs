@@ -21,16 +21,22 @@ public sealed class GetTransfersHandler(
         var page = Math.Max(request.Page, 1);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
+        var ownedAccountIds = dbContext.Accounts
+            .Where(account => account.UserId == userContext.UserId)
+            .Select(account => account.Id);
+
         var query = dbContext.Transfers
             .AsNoTracking()
-            .Where(x => x.UserId == userContext.UserId)
+            .Where(transfer =>
+                ownedAccountIds.Contains(transfer.SourceAccountId)
+                || ownedAccountIds.Contains(transfer.DestinationAccountId))
             .Apply(request);
 
         var totalItems = await query.CountAsync(
             cancellationToken);
 
         var items = await query
-            .OrderByDescending(x => x.CreatedAt)
+            .ApplySorting(request)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ProjectToType<TransferResult>()

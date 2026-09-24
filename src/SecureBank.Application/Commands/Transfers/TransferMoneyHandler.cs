@@ -33,22 +33,12 @@ public sealed class TransferMoneyHandler(
             .FirstOrDefaultAsync(
                 x => x.Id == request.SourceAccountId
                     && x.UserId == userId,
-                cancellationToken);
+                cancellationToken) ?? throw new ForbiddenException("You are not allowed to transfer from this account.");
 
-        if (sourceAccount is null)
-        {
-            throw new ForbiddenException("You are not allowed to transfer from this account.");
-        }
-                
         var destinationAccount = await dbContext.Accounts
             .FirstOrDefaultAsync(
                 x => x.Id == request.DestinationAccountId,
-                cancellationToken);
-
-        if (destinationAccount is null)
-        {
-            throw new InvalidOperationException("Destination account was not found.");
-        }
+                cancellationToken) ?? throw new InvalidOperationException("Destination account was not found.");
 
         var amount = Money.Create(
             request.Amount,
