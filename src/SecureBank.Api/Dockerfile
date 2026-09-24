@@ -22,6 +22,16 @@ RUN dotnet publish "SecureBank.Api.csproj" \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
+USER root
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /home/app/.aspnet/DataProtection-Keys \
+    && chown -R $APP_UID:$APP_UID /home/app
+
+USER $APP_UID
+
 EXPOSE 8080
 
 COPY --from=build /app/publish .
