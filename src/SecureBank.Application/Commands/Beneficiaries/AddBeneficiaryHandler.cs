@@ -19,12 +19,7 @@ public sealed class AddBeneficiaryHandler(
         var userId = userContext.UserId;
 
         var account = await dbContext.Accounts
-            .FirstOrDefaultAsync(x => x.Id == request.AccountId, cancellationToken);
-
-        if (account is null)
-        {
-            throw new NotFoundException("The account was not found.");
-        }
+            .SingleOrDefaultAsync(x => x.AccountNumber == request.AccountNumber, cancellationToken) ?? throw new NotFoundException("The account was not found.");
 
         if (account.UserId == userId)
         {
@@ -34,7 +29,7 @@ public sealed class AddBeneficiaryHandler(
 
         var existing = await dbContext.Beneficiaries
             .FirstOrDefaultAsync(
-                x => x.UserId == userId && x.AccountId == request.AccountId,
+                x => x.UserId == userId && x.AccountId == account.Id,
                 cancellationToken);
 
         if (existing is not null)
@@ -44,7 +39,7 @@ public sealed class AddBeneficiaryHandler(
 
         var beneficiary = Beneficiary.Create(
             userId,
-            request.AccountId,
+            account.Id,
             request.Nickname);
 
         dbContext.Beneficiaries.Add(beneficiary);
@@ -63,7 +58,7 @@ public sealed class AddBeneficiaryHandler(
         {
             var concurrentBeneficiary = await dbContext.Beneficiaries
                 .FirstOrDefaultAsync(
-                    x => x.UserId == userId && x.AccountId == request.AccountId,
+                    x => x.UserId == userId && x.AccountId == account.Id,
                     cancellationToken);
 
             if (concurrentBeneficiary is not null)

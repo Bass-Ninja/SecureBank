@@ -3,5 +3,5 @@ using Mediator;
 namespace SecureBank.Application.Commands.Beneficiaries;
 
 public sealed record AddBeneficiaryCommand(
-    Guid AccountId,
+    string AccountNumber,
     string Nickname) : IRequest<Guid>;

@@ -7,9 +7,12 @@ public sealed class AddBeneficiaryCommandValidator
 {
     public AddBeneficiaryCommandValidator()
     {
-        RuleFor(x => x.AccountId)
+        RuleFor(x => x.AccountNumber)
             .NotEmpty()
-            .WithMessage("Account is required.");
+            .MaximumLength(34)
+            .Matches("^[A-Za-z0-9 ]+$")
+            .WithMessage("Account number must contain only letters, numbers, and spaces.");
+
 
         RuleFor(x => x.Nickname)
             .NotEmpty()

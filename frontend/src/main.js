@@ -512,8 +512,8 @@ function renderBeneficiaries() {
           <input id="beneficiary-name" name="nickname" maxlength="100" required />
         </div>
         <div class="field">
-          <label for="beneficiary-account">Account ID</label>
-          <input id="beneficiary-account" name="accountId" required />
+          <label for="beneficiary-account">Account number</label>
+          <input id="beneficiary-account" name="accountNumber" type="text" maxlength="34" placeholder="SI560000000000000002" required autocomplete="off" />
         </div>
         <button class="primary-button" type="submit"><i data-lucide="Plus"></i> Add beneficiary</button>
       </form>
@@ -554,7 +554,7 @@ async function submitBeneficiary(event) {
     await api("/api/beneficiaries", {
       method: "POST",
       body: JSON.stringify({
-        accountId: data.get("accountId"),
+        accountNumber: data.get("accountNumber"),
         nickname: data.get("nickname")
       })
     });
