@@ -423,7 +423,7 @@ function renderTransfer() {
         <div class="field">
           <label for="saved-beneficiary">Saved beneficiary</label>
           <select id="saved-beneficiary">
-            <option value="">Enter an account ID manually</option>
+            <option value="">Enter an account number manually</option>
             ${state.beneficiaries.map(item => `
               <option value="${escapeHtml(item.accountNumber)}">${escapeHtml(item.nickname)} · ${escapeHtml(shortAccount(item.accountNumber))}</option>`).join("")}
           </select>
