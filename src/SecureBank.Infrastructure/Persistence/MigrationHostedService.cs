@@ -5,7 +5,8 @@ using Microsoft.Extensions.Hosting;
 namespace SecureBank.Infrastructure.Persistence;
 
 internal sealed class MigrationHostedService(
-    IServiceProvider serviceProvider)
+    IServiceProvider serviceProvider,
+    IHostEnvironment environment)
     : IHostedService
 {
     public async Task StartAsync(
@@ -19,6 +20,13 @@ internal sealed class MigrationHostedService(
 
         await dbContext.Database.MigrateAsync(
             cancellationToken);
+
+        if (environment.IsDevelopment())
+        {
+            await DevelopmentDataSeeder.SeedAsync(
+                dbContext,
+                cancellationToken);
+        }
     }
 
     public Task StopAsync(
