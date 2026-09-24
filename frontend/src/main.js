@@ -425,12 +425,12 @@ function renderTransfer() {
           <select id="saved-beneficiary">
             <option value="">Enter an account ID manually</option>
             ${state.beneficiaries.map(item => `
-              <option value="${item.accountId}">${escapeHtml(item.nickname)}</option>`).join("")}
+              <option value="${escapeHtml(item.accountNumber)}">${escapeHtml(item.nickname)} · ${escapeHtml(shortAccount(item.accountNumber))}</option>`).join("")}
           </select>
         </div>
         <div class="field">
-          <label for="destination-account">Destination account ID</label>
-          <input id="destination-account" name="destinationAccountId" type="text" required autocomplete="off" />
+          <label for="destination-account">Destination account number</label>
+          <input id="destination-account" name="destinationAccountNumber" type="text" maxlength="34" placeholder="SI560000000000000002" required autocomplete="off" />
         </div>
         <div class="field-row">
           <div class="field">
@@ -485,7 +485,7 @@ async function submitTransfer(event) {
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify({
         sourceAccountId: data.get("sourceAccountId"),
-        destinationAccountId: data.get("destinationAccountId"),
+        destinationAccountNumber: data.get("destinationAccountNumber"),
         amount: Number(data.get("amount")),
         currency: data.get("currency")
       })
@@ -536,7 +536,7 @@ function beneficiaryRow(item) {
       <span class="beneficiary-avatar">${escapeHtml(item.nickname.slice(0, 2).toUpperCase())}</span>
       <div>
         <strong>${escapeHtml(item.nickname)}</strong>
-        <span>${escapeHtml(item.accountId)}</span>
+        <span>${escapeHtml(item.accountNumber)}</span>
       </div>
       <button class="icon-button danger" data-delete-beneficiary="${item.id}" title="Delete beneficiary" aria-label="Delete ${escapeHtml(item.nickname)}">
         <i data-lucide="Trash2"></i>

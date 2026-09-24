@@ -140,7 +140,7 @@ Keycloak startup imports only `infrastructure/keycloak/securebank-realm.json`. M
 | `GET` | `/api/accounts` | Current customer's accounts |
 | `GET` | `/api/accounts/{id}` | Account protected by object-level authorization |
 | `GET` | `/api/transfers` | Current customer's transfer history |
-| `POST` | `/api/transfers` | Idempotent transfer from an owned account |
+| `POST` | `/api/transfers` | Idempotent transfer from an owned account to an account number |
 | `GET` | `/api/beneficiaries` | Current customer's beneficiaries |
 | `POST` | `/api/beneficiaries` | Add a beneficiary |
 | `DELETE` | `/api/beneficiaries/{id}` | Remove an owned beneficiary |

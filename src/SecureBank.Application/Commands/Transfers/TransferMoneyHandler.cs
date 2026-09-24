@@ -35,10 +35,19 @@ public sealed class TransferMoneyHandler(
                     && x.UserId == userId,
                 cancellationToken) ?? throw new ForbiddenException("You are not allowed to transfer from this account.");
 
+        var destinationAccountNumber = request.DestinationAccountNumber
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .ToUpperInvariant();
+
         var destinationAccount = await dbContext.Accounts
             .FirstOrDefaultAsync(
-                x => x.Id == request.DestinationAccountId,
+                x => x.AccountNumber == destinationAccountNumber,
                 cancellationToken) ?? throw new InvalidOperationException("Destination account was not found.");
+
+        if (sourceAccount.Id == destinationAccount.Id)
+        {
+            throw new InvalidOperationException("Source and destination accounts must be different.");
+        }
 
         var amount = Money.Create(
             request.Amount,

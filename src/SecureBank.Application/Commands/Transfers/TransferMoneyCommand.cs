@@ -4,7 +4,7 @@ namespace SecureBank.Application.Commands.Transfers;
 
 public sealed record TransferMoneyCommand(
     Guid SourceAccountId,
-    Guid DestinationAccountId,
+    string DestinationAccountNumber,
     decimal Amount,
     string Currency,
     string IdempotencyKey) : IRequest<Guid>;

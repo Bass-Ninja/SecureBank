@@ -1,4 +1,3 @@
-using Mapster;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using SecureBank.Application.Abstractions;
@@ -22,7 +21,16 @@ public sealed class GetBeneficiariesQueryHandler(
             .AsNoTracking()
             .Where(x => x.UserId == userContext.UserId)
             .OrderBy(x => x.Nickname)
-            .ProjectToType<BeneficiaryResult>()
+            .Join(
+                dbContext.Accounts.AsNoTracking(),
+                beneficiary => beneficiary.AccountId,
+                account => account.Id,
+                (beneficiary, account) => new BeneficiaryResult(
+                    beneficiary.Id,
+                    beneficiary.AccountId,
+                    account.AccountNumber,
+                    beneficiary.Nickname,
+                    beneficiary.CreatedAt))
             .ToListAsync(cancellationToken);
 
         return Result<IReadOnlyCollection<BeneficiaryResult>>.Ok(beneficiaries);

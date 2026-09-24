@@ -2,7 +2,7 @@ namespace SecureBank.Api.Models.Transfers;
 
 public sealed record CreateTransferRequest(
     Guid SourceAccountId,
-    Guid DestinationAccountId,
+    string DestinationAccountNumber,
     decimal Amount,
     string Currency);
 

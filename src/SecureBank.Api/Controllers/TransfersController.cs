@@ -32,7 +32,7 @@ public sealed class TransfersController(IMediator sender) : ControllerBase
     {
         var command = new TransferMoneyCommand(
             request.SourceAccountId,
-            request.DestinationAccountId,
+            request.DestinationAccountNumber,
             request.Amount,
             request.Currency,
             idempotencyKey);

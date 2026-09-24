@@ -11,14 +11,11 @@ public sealed class TransferMoneyCommandValidator
             .NotEmpty()
             .WithMessage("Source account is required.");
 
-        RuleFor(x => x.DestinationAccountId)
+        RuleFor(x => x.DestinationAccountNumber)
             .NotEmpty()
-            .WithMessage("Destination account is required.");
-
-        RuleFor(x => x)
-            .Must(x => x.SourceAccountId != x.DestinationAccountId)
-            .WithMessage(
-                "Source and destination accounts must be different.");
+            .MaximumLength(34)
+            .Matches("^[A-Za-z0-9 ]+$")
+            .WithMessage("Destination account number must contain only letters, numbers, and spaces.");
 
         RuleFor(x => x.Amount)
             .GreaterThan(0)
