@@ -14,9 +14,12 @@ import {
   LogOut,
   Plus,
   RefreshCw,
+  Search,
   Send,
+  ShieldCheck,
   Trash2,
   UserRound,
+  Users,
   createIcons
 } from "lucide";
 import "./styles.css";
@@ -43,9 +46,12 @@ const icons = {
   LogOut,
   Plus,
   RefreshCw,
+  Search,
   Send,
+  ShieldCheck,
   Trash2,
-  UserRound
+  UserRound,
+  Users
 };
 
 const state = {
@@ -54,7 +60,9 @@ const state = {
   accounts: [],
   beneficiaries: [],
   transfers: emptyPage(),
-  transferPage: 1
+  transferPage: 1,
+  staffAccounts: [],
+  staffUserId: ""
 };
 
 const app = document.querySelector("#app");
@@ -136,15 +144,26 @@ async function api(path, options = {}) {
   return payload;
 }
 
+function isStaff() {
+  return state.user?.roles?.some(role => role === "support" || role === "admin") ?? false;
+}
+
 async function loadData() {
-  const [user, accounts, beneficiaries, transfers] = await Promise.all([
-    api("/api/auth/me"),
+  state.user = await api("/api/auth/me");
+
+  if (isStaff()) {
+    state.accounts = [];
+    state.beneficiaries = [];
+    state.transfers = emptyPage();
+    return;
+  }
+
+  const [accounts, beneficiaries, transfers] = await Promise.all([
     api("/api/accounts"),
     api("/api/beneficiaries"),
     api("/api/transfers?page=1&pageSize=25&sortBy=createdAt&sortDirection=desc")
   ]);
 
-  state.user = user;
   state.accounts = accounts;
   state.beneficiaries = beneficiaries;
   state.transfers = transfers;
@@ -160,16 +179,19 @@ function renderShell() {
           <span>SecureBank</span>
         </div>
         <nav class="main-nav" aria-label="Main navigation">
-          ${navButton("overview", "LayoutDashboard", "Overview")}
-          ${navButton("transfer", "Send", "New transfer")}
-          ${navButton("beneficiaries", "BookUser", "Beneficiaries")}
-          ${navButton("activity", "Clock3", "Activity")}
+          ${isStaff()
+            ? `${navButton("overview", "ShieldCheck", "Operations")}
+               ${navButton("customer-search", "Users", "Customer lookup")}`
+            : `${navButton("overview", "LayoutDashboard", "Overview")}
+               ${navButton("transfer", "Send", "New transfer")}
+               ${navButton("beneficiaries", "BookUser", "Beneficiaries")}
+               ${navButton("activity", "Clock3", "Activity")}`}
         </nav>
         <div class="sidebar-user">
           <div class="user-avatar"><i data-lucide="UserRound"></i></div>
           <div>
-            <strong>${escapeHtml(state.user?.username ?? "Customer")}</strong>
-            <span>${escapeHtml(state.user?.email ?? "")}</span>
+            <strong>${escapeHtml(state.user?.username ?? "User")}</strong>
+            <span>${escapeHtml(isStaff() ? "Bank staff" : state.user?.email ?? "")}</span>
           </div>
           <button class="icon-button" id="logout-button" title="Sign out" aria-label="Sign out">
             <i data-lucide="LogOut"></i>
@@ -179,7 +201,7 @@ function renderShell() {
       <main class="main-content">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Personal banking</p>
+            <p class="eyebrow">${isStaff() ? "Staff operations" : "Personal banking"}</p>
             <h1 id="page-title"></h1>
           </div>
           <button class="icon-button" id="refresh-button" title="Refresh data" aria-label="Refresh data">
@@ -223,7 +245,8 @@ function renderView() {
   });
 
   const title = {
-    overview: "Overview",
+    overview: isStaff() ? "Operations overview" : "Overview",
+    "customer-search": "Customer lookup",
     transfer: "New transfer",
     beneficiaries: "Beneficiaries",
     activity: "Account activity"
@@ -231,12 +254,107 @@ function renderView() {
 
   document.querySelector("#page-title").textContent = title;
 
-  if (state.view === "overview") renderOverview();
+  if (state.view === "overview") {
+    if (isStaff()) renderStaffOverview();
+    else renderOverview();
+  }
+  if (state.view === "customer-search") renderCustomerSearch();
   if (state.view === "transfer") renderTransfer();
   if (state.view === "beneficiaries") renderBeneficiaries();
   if (state.view === "activity") renderActivity();
 
   createIcons({ icons });
+}
+
+function renderStaffOverview() {
+  const role = state.user.roles.includes("admin") ? "Administrator" : "Support";
+
+  document.querySelector("#view-root").innerHTML = `
+    <div class="staff-banner">
+      <span class="staff-banner-icon"><i data-lucide="ShieldCheck"></i></span>
+      <div>
+        <span>Authenticated staff workspace</span>
+        <strong>${escapeHtml(role)} access</strong>
+        <p>Customer accounts are available for support review. Transfers and beneficiary changes remain customer-only operations.</p>
+      </div>
+    </div>
+    <div class="summary-strip">
+      <div><span>Active role</span><strong>${escapeHtml(role)}</strong></div>
+      <div><span>Customer actions</span><strong>Read only</strong></div>
+      <div><span>Authorization</span><strong>Staff policy</strong></div>
+    </div>
+    <div class="section-heading"><h2>Available operations</h2></div>
+    <div class="operation-grid">
+      <button class="operation-item" data-go="customer-search">
+        <span><i data-lucide="Users"></i></span>
+        <div><strong>Find customer accounts</strong><p>Look up account status and balances using a customer identity ID.</p></div>
+        <i data-lucide="ArrowRight"></i>
+      </button>
+      <div class="operation-item disabled-operation">
+        <span><i data-lucide="Send"></i></span>
+        <div><strong>Move customer funds</strong><p>Unavailable to support staff by design.</p></div>
+        <i data-lucide="ShieldCheck"></i>
+      </div>
+    </div>`;
+
+  bindGoButtons();
+}
+
+function renderCustomerSearch() {
+  document.querySelector("#view-root").innerHTML = `
+    <form id="customer-search-form" class="lookup-panel">
+      <div>
+        <label for="customer-user-id">Customer identity ID</label>
+        <p>Enter the Keycloak user UUID associated with the customer.</p>
+      </div>
+      <div class="lookup-control">
+        <input id="customer-user-id" name="userId" value="${escapeHtml(state.staffUserId)}" placeholder="00000000-0000-0000-0000-000000000000" required />
+        <button class="primary-button" type="submit"><i data-lucide="Search"></i> Find accounts</button>
+      </div>
+    </form>
+    <div class="section-heading">
+      <h2>${state.staffUserId ? "Customer accounts" : "Lookup results"}</h2>
+      ${state.staffUserId ? `<span class="result-id">${escapeHtml(state.staffUserId)}</span>` : ""}
+    </div>
+    <div id="staff-account-results" class="account-grid">
+      ${state.staffUserId
+        ? (state.staffAccounts.length ? state.staffAccounts.map(staffAccountCard).join("") : emptyState("Building2", "No accounts found for this customer"))
+        : emptyState("Search", "Enter a customer identity ID to begin")}
+    </div>`;
+
+  document.querySelector("#customer-search-form").addEventListener("submit", searchCustomerAccounts);
+}
+
+function staffAccountCard(account) {
+  return `
+    <article class="account-card staff-account-card">
+      <div class="account-card-top">
+        <span class="account-icon"><i data-lucide="Building2"></i></span>
+        <span class="status status-${account.status.toLowerCase()}">${escapeHtml(account.status)}</span>
+      </div>
+      <p>Customer account</p>
+      <h3>${formatMoney(account.balance, account.currency)}</h3>
+      <span class="account-number">${escapeHtml(account.accountNumber)}</span>
+      <dl><div><dt>Account ID</dt><dd>${escapeHtml(account.id)}</dd></div></dl>
+    </article>`;
+}
+
+async function searchCustomerAccounts(event) {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector("button[type='submit']");
+  const userId = new FormData(event.currentTarget).get("userId").trim();
+  setButtonBusy(button, true);
+
+  try {
+    state.staffAccounts = await api(`/api/staff/accounts/${encodeURIComponent(userId)}`);
+    state.staffUserId = userId;
+    renderCustomerSearch();
+    createIcons({ icons });
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    setButtonBusy(button, false);
+  }
 }
 
 function renderOverview() {
