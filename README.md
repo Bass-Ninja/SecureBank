@@ -47,23 +47,23 @@ Staff cannot initiate customer transfers or manage customer beneficiaries. The f
                          Docker network
                     ┌──────────────────────────┐
                     │                          │
-Browser              │                          │
-   │                 │                          │
-   │ HTTPS           │                          │
-   ▼                 │                          │
-Nginx :3443          │                          │
-   │                 │                          │
-   ├── /api/* ───────┼──> SecureBank API :8080 │
-   │                 │          │               │
-   │                 │          ├──> PostgreSQL │
-   │                 │          │      :5432    │
-   │                 │          │               │
-   │                 │          └──> Keycloak   │
-   │                 │               :8080      │
-   │                 │               metadata   │
-   │                 │               + JWKS     │
-   │                 │                          │
-   └── /auth/* ──────┼──> Keycloak :8080       │
+Browser             │                          │
+   │                │                          │
+   │ HTTPS          │                          │
+   ▼                │                          │
+Nginx :3443         │                          │
+   │                │                          │
+   ├── /api/* ──────┼──> SecureBank API :8080 │
+   │                │          │               │
+   │                │          ├──> PostgreSQL │
+   │                │          │      :5432    │
+   │                │          │               │
+   │                │          └──> Keycloak   │
+   │                │               :8080      │
+   │                │               metadata   │
+   │                │               + JWKS     │
+   │                │                          │
+   └── /auth/* ─────┼──> Keycloak :8080       │
                     │                          │
                     └──────────────────────────┘
 ```
@@ -90,11 +90,11 @@ The backend follows a layered architecture:
 
 ```text
 src/
-|-- SecureBank.Api                      HTTP endpoints and middleware
-|-- SecureBank.Application              Commands, queries, validators, behaviors
+|-- SecureBank.Api                     HTTP endpoints and middleware
+|-- SecureBank.Application             Commands, queries, validators, behaviors
 |-- SecureBank.Application.Abstractions Shared contracts and authorization roles
-|-- SecureBank.Domain                   Accounts, transfers, money, domain events
-`-- SecureBank.Infrastructure           EF Core, Keycloak auth, persistence, health
+|-- SecureBank.Domain                  Accounts, transfers, money, domain events
+`-- SecureBank.Infrastructure          EF Core, Keycloak auth, persistence, health
 
 frontend/                               Vite browser client served by Nginx
 infrastructure/keycloak/                Reproducible realm configuration
@@ -144,7 +144,7 @@ This preserves the public issuer used by the browser-facing OIDC flow while allo
 - Docker Desktop with Docker Compose
 - .NET 10 SDK
 - PowerShell
-- Ports `3000`, `3443`, `8080`, `8081`, and `8443` available
+- Ports `3000`, `3443`, `8080`, `8081`, `8443`, and `15432` available
 
 ### 1. Create local development certificates
 
@@ -158,8 +158,8 @@ From the repository root, run:
 
 The setup script:
 
-- Creates and trusts an ASP.NET development certificate
-- Exports the certificate used by Kestrel
+- Ensures a trusted ASP.NET development certificate is available
+- Exports it for use by Kestrel
 - Creates the certificate and private key used by Nginx
 - Generates the local `.env` containing the certificate password
 
@@ -202,7 +202,7 @@ Open:
 
 - Web application: `https://localhost:3443`
 - API documentation: `https://localhost:8443/swagger`
-- Keycloak through Nginx: `https://localhost:3443/auth/`
+- Keycloak Admin Console: `https://localhost:3443/auth/admin/master/console/`
 
 The API automatically applies database migrations and creates repeatable development data.
 
@@ -219,6 +219,13 @@ For the staff lookup demo, Nina's user ID is:
 
 ```text
 0406f376-1a90-45a8-a117-09a96c051983
+```
+
+Keycloak development administrator:
+
+```text
+Username: admin
+Password: admin_dev_password
 ```
 
 These credentials are development fixtures only. Do not reuse them or expose this Compose configuration to an untrusted network.
@@ -271,6 +278,8 @@ https://localhost:3443/auth/*
 ```
 
 and are forwarded internally to the Keycloak container.
+
+Security headers applied by Nginx to the SecureBank application are scoped to the application routes. Keycloak responses under `/auth/*` retain Keycloak's own security-header policy because its authentication and administration flows use legitimate iframe-based browser mechanisms.
 
 The API also exposes a direct HTTPS development endpoint:
 
