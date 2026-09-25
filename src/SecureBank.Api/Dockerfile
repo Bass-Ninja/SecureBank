@@ -33,6 +33,7 @@ RUN apt-get update \
 USER $APP_UID
 
 EXPOSE 8080
+EXPOSE 8443
 
 COPY --from=build /app/publish .
 

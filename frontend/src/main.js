@@ -24,7 +24,7 @@ import {
 } from "lucide";
 import "./styles.css";
 
-const keycloakBaseUrl = `${window.location.protocol}//${window.location.hostname}:8081`;
+const keycloakBaseUrl = `${window.location.origin}/auth`;
 const keycloak = new Keycloak({
   url: keycloakBaseUrl,
   realm: "securebank",

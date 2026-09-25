@@ -8,6 +8,9 @@ The project is intentionally **secure by default**. Its purpose is to demonstrat
 
 - OpenID Connect login with Keycloak and Authorization Code Flow with PKCE
 - JWT issuer, audience, lifetime, and signing-key validation
+- Separation of the public OIDC issuer from internal metadata and JWKS retrieval
+- HTTPS for browser-facing traffic using local development certificates
+- Nginx TLS termination and reverse proxying for the web application, API, and Keycloak
 - Customer and bank-staff role separation
 - Object-level authorization on account resources
 - Ownership checks on transfers and beneficiaries
@@ -41,19 +44,47 @@ Staff cannot initiate customer transfers or manage customer beneficiaries. The f
 ## Architecture
 
 ```text
-Browser
-  |
-  | OIDC + PKCE
-  v
-Keycloak :8081 ---- JWT ----> SecureBank Web :3000
-                                  |
-                                  | Bearer token
-                                  v
-                            SecureBank API :8080
-                                  |
-                                  v
-                             PostgreSQL :5432
+                         Docker network
+                    ┌──────────────────────────┐
+                    │                          │
+Browser              │                          │
+   │                 │                          │
+   │ HTTPS           │                          │
+   ▼                 │                          │
+Nginx :3443          │                          │
+   │                 │                          │
+   ├── /api/* ───────┼──> SecureBank API :8080 │
+   │                 │          │               │
+   │                 │          ├──> PostgreSQL │
+   │                 │          │      :5432    │
+   │                 │          │               │
+   │                 │          └──> Keycloak   │
+   │                 │               :8080      │
+   │                 │               metadata   │
+   │                 │               + JWKS     │
+   │                 │                          │
+   └── /auth/* ──────┼──> Keycloak :8080       │
+                    │                          │
+                    └──────────────────────────┘
 ```
+
+Nginx acts as the browser-facing reverse proxy and TLS termination point. The browser accesses the application at `https://localhost:3443`, while API and identity-provider communication inside the Docker network can use container-local HTTP.
+
+Browser requests are routed through Nginx:
+
+- `/api/*` → SecureBank API
+- `/auth/*` → Keycloak
+- all other application routes → SecureBank frontend
+
+Keycloak issues tokens using the public issuer:
+
+```text
+https://localhost:3443/auth/realms/securebank
+```
+
+The API validates that public issuer while retrieving OpenID Connect metadata and signing keys from Keycloak through its internal Docker address.
+
+This keeps the externally visible OIDC identity separate from container-to-container discovery without weakening JWT validation.
 
 The backend follows a layered architecture:
 
@@ -67,6 +98,7 @@ src/
 
 frontend/                               Vite browser client served by Nginx
 infrastructure/keycloak/                Reproducible realm configuration
+scripts/                                Local development setup scripts
 tests/                                  Unit and integration tests
 ```
 
@@ -85,14 +117,82 @@ Commands and queries pass through validation, authorization, logging, performanc
 
 The browser controls are usability features, not security controls. Removing a button or hiding a route does not grant or deny access; every protected decision is repeated on the server.
 
+### OIDC validation
+
+The browser-facing Keycloak issuer is:
+
+```text
+https://localhost:3443/auth/realms/securebank
+```
+
+Inside Docker, the API cannot use that `localhost` address to retrieve provider metadata or signing keys because `localhost` would refer to the API container itself rather than Keycloak.
+
+SecureBank therefore separates token identity from backchannel discovery:
+
+- Tokens must contain the expected public issuer
+- The API validates the expected audience
+- Token lifetime validation remains enabled
+- Signing-key validation remains enabled
+- OpenID Connect metadata and signing keys are retrieved from Keycloak through its internal Docker address
+
+This preserves the public issuer used by the browser-facing OIDC flow while allowing the API to securely retrieve Keycloak's signing keys inside the Docker network.
+
 ## Run locally
 
 ### Requirements
 
 - Docker Desktop with Docker Compose
-- Ports `3000`, `8080`, and `8081` available
+- .NET 10 SDK
+- PowerShell
+- Ports `3000`, `3443`, `8080`, `8081`, and `8443` available
 
-Start the complete environment:
+### 1. Create local development certificates
+
+Certificates and certificate passwords are intentionally not stored in the repository.
+
+From the repository root, run:
+
+```powershell
+.\scripts\setup-dev-cert.ps1
+```
+
+The setup script:
+
+- Creates and trusts an ASP.NET development certificate
+- Exports the certificate used by Kestrel
+- Creates the certificate and private key used by Nginx
+- Generates the local `.env` containing the certificate password
+
+Generated certificate material is stored under:
+
+```text
+.certs/
+```
+
+The resulting local files include:
+
+```text
+.certs/
+|-- securebank.pfx
+|-- securebank.crt
+`-- securebank.key
+
+.env
+```
+
+Both `.certs/` and `.env` are excluded from Git.
+
+The repository contains `.env.example` to document the required environment variable without storing its value:
+
+```dotenv
+SECUREBANK_CERT_PASSWORD=
+```
+
+Do not commit generated certificates, private keys, or the populated `.env` file.
+
+### 2. Start the environment
+
+Once the development certificates have been created, start the complete environment:
 
 ```powershell
 docker compose up --build
@@ -100,11 +200,13 @@ docker compose up --build
 
 Open:
 
-- Web application: <http://localhost:3000>
-- API documentation: <http://localhost:8080/swagger>
-- Keycloak administration: <http://localhost:8081>
+- Web application: `https://localhost:3443`
+- API documentation: `https://localhost:8443/swagger`
+- Keycloak through Nginx: `https://localhost:3443/auth/`
 
 The API automatically applies database migrations and creates repeatable development data.
+
+Keycloak configuration is imported automatically from the checked-in realm definition. A fresh environment does not require manually creating realms, clients, roles, groups, or demo users through the Keycloak administration console.
 
 ### Demo identities
 
@@ -130,7 +232,55 @@ docker compose down --volumes
 docker compose up --build
 ```
 
-Keycloak startup imports only `infrastructure/keycloak/securebank-realm.json`. Mounting that individual file prevents unrelated JSON documents from being interpreted as full realm exports.
+This removes the persistent PostgreSQL and Keycloak volumes. It does not remove the locally generated development certificates or `.env`.
+
+Keycloak imports `infrastructure/keycloak/securebank-realm.json` when a new realm database is created.
+
+The checked-in realm definition contains the clients, roles, groups, users, redirect URIs, and web origins required by the local environment.
+
+Only the realm export itself is mounted into Keycloak's import directory, preventing unrelated JSON documents from being interpreted as realm definitions.
+
+## HTTPS and reverse proxying
+
+The local environment exposes two HTTPS entry points for different purposes.
+
+The primary browser-facing application is:
+
+```text
+https://localhost:3443
+```
+
+Nginx terminates TLS on this endpoint and routes requests to the appropriate internal service.
+
+Application API requests use:
+
+```text
+https://localhost:3443/api/*
+```
+
+and are forwarded internally to:
+
+```text
+http://api:8080
+```
+
+Keycloak requests use:
+
+```text
+https://localhost:3443/auth/*
+```
+
+and are forwarded internally to the Keycloak container.
+
+The API also exposes a direct HTTPS development endpoint:
+
+```text
+https://localhost:8443
+```
+
+This is useful for Swagger, direct API testing, and security labs such as comparing plaintext HTTP traffic with TLS-protected traffic.
+
+The certificates used by these endpoints are generated locally and are not part of the repository.
 
 ## API surface
 
@@ -170,6 +320,8 @@ The current suite covers domain behavior, validation, application authorization,
 
 SecureBank is suitable for testing with a browser proxy such as Burp Suite even though the UI does not expose arbitrary resource IDs. A tester can authenticate normally, intercept an API request, and modify identifiers or claims-related context to verify that the server rejects unauthorized access.
 
+The application can also be used as a target from an isolated security-testing environment, allowing the normal application stack to remain separate from tooling used for traffic analysis, enumeration, and controlled attack simulations.
+
 Planned writeups will use a repeatable format:
 
 1. Define the authorization claim and expected trust boundary.
@@ -186,6 +338,8 @@ Candidate labs include:
 - Horizontal versus vertical privilege-boundary tests
 - JWT audience, issuer, expiry, and role-tampering validation
 - Transfer replay and idempotency-key behavior
+- HTTP versus HTTPS traffic analysis
+- TLS handshake and encrypted application-traffic inspection
 - Rate-limit verification and error-response analysis
 - Dependency, secret, container, and static-analysis scanning
 - Detection engineering based on rejected authorization attempts
@@ -195,3 +349,5 @@ All offensive testing should be performed only against the local lab environment
 ## Project status
 
 The core application and its customer/staff workflows are complete enough to serve as the stable target for the next phase: structured security labs, evidence capture, remediation comparisons, and portfolio writeups.
+
+The current environment includes reproducible Keycloak configuration, containerized PostgreSQL, HTTPS-enabled browser and API access, OIDC/JWT validation, and a Docker-based application stack that can be used as the target for future security-engineering labs.

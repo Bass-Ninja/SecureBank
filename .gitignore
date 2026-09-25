@@ -23,6 +23,8 @@ Thumbs.db
 .env.*
 !.env.example
 
+.certs/
+
 # Docker
 docker-compose.override.yml
 

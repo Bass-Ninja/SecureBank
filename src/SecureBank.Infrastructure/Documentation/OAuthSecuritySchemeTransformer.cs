@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.OpenApi;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.OpenApi;
 
 namespace SecureBank.Infrastructure.Documentation;
 
 public sealed class OAuthSecuritySchemeTransformer(
-    IAuthenticationSchemeProvider authenticationSchemeProvider)
+    IAuthenticationSchemeProvider authenticationSchemeProvider,
+    IConfiguration configuration)
     : IOpenApiDocumentTransformer
 {
     public async Task TransformAsync(
@@ -22,6 +23,11 @@ public sealed class OAuthSecuritySchemeTransformer(
             return;
         }
 
+        var issuer =
+            configuration["Keycloak:Issuer"]
+            ?? throw new InvalidOperationException(
+                "Keycloak:Issuer is not configured.");
+
         document.Components ??= new OpenApiComponents();
 
         document.Components.SecuritySchemes = new Dictionary<
@@ -35,13 +41,11 @@ public sealed class OAuthSecuritySchemeTransformer(
                 {
                     AuthorizationCode = new OpenApiOAuthFlow
                     {
-                        AuthorizationUrl =
-                            new Uri(
-                                "http://localhost:8081/realms/securebank/protocol/openid-connect/auth"),
+                        AuthorizationUrl = new Uri(
+                            $"{issuer}/protocol/openid-connect/auth"),
 
-                        TokenUrl =
-                            new Uri(
-                                "http://localhost:8081/realms/securebank/protocol/openid-connect/token"),
+                        TokenUrl = new Uri(
+                            $"{issuer}/protocol/openid-connect/token"),
 
                         Scopes = new Dictionary<string, string>
                         {

@@ -6,6 +6,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using SecureBank.Application.Abstractions;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace SecureBank.Infrastructure.Authentication;
 
@@ -35,17 +37,30 @@ public static class KeycloakAuthenticationExtensions
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                options.Authority = authority;
                 options.Audience = audience;
                 options.RequireHttpsMetadata = requireHttpsMetadata;
+
+                var metadataAddress =
+                    $"{authority}/.well-known/openid-configuration";
+
+                options.ConfigurationManager =
+                    new ConfigurationManager<OpenIdConnectConfiguration>(
+                        metadataAddress,
+                        new InternalKeycloakConfigurationRetriever(authority),
+                        new HttpDocumentRetriever
+                        {
+                            RequireHttps = requireHttpsMetadata
+                        });
 
                 options.TokenValidationParameters =
                     new TokenValidationParameters
                     {
                         ValidateIssuer = true,
                         ValidIssuer = issuer,
+
                         ValidateAudience = true,
                         ValidAudience = audience,
+
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true
                     };
@@ -55,7 +70,6 @@ public static class KeycloakAuthenticationExtensions
                     OnTokenValidated = context =>
                     {
                         MapRealmRolesToRoleClaims(context.Principal);
-
                         return Task.CompletedTask;
                     }
                 };
@@ -78,13 +92,41 @@ public static class KeycloakAuthenticationExtensions
         return services;
     }
 
+    internal sealed class InternalKeycloakConfigurationRetriever(
+    string authority) : IConfigurationRetriever<OpenIdConnectConfiguration>
+    {
+        public async Task<OpenIdConnectConfiguration> GetConfigurationAsync(
+            string address,
+            IDocumentRetriever retriever,
+            CancellationToken cancel)
+        {
+            var document = await retriever.GetDocumentAsync(address, cancel);
+
+            var configuration =
+                OpenIdConnectConfiguration.Create(document);
+
+            var jwksAddress =
+                $"{authority}/protocol/openid-connect/certs";
+
+            var jwksDocument =
+                await retriever.GetDocumentAsync(jwksAddress, cancel);
+
+            var jwks = new JsonWebKeySet(jwksDocument);
+
+            foreach (var signingKey in jwks.GetSigningKeys())
+            {
+                configuration.SigningKeys.Add(signingKey);
+            }
+
+            return configuration;
+        }
+    }
+
     private static void MapRealmRolesToRoleClaims(ClaimsPrincipal? principal)
     {
-        var identity = principal?.Identity as ClaimsIdentity;
-
         var realmAccess = principal?.FindFirst("realm_access")?.Value;
 
-        if (identity is null || realmAccess is null)
+        if (principal?.Identity is not ClaimsIdentity identity || realmAccess is null)
         {
             return;
         }
