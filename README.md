@@ -4,7 +4,7 @@ SecureBank is a security-focused banking API and browser application built with 
 
 The project is intentionally **secure by default**. Its purpose is to demonstrate application-security engineering and provide a realistic target for authorization testing, traffic inspection, threat modelling, network-security experiments, and defensive writeups.
 
-## What it demonstrates
+## What It Demonstrates
 
 - OpenID Connect login with Keycloak and Authorization Code Flow with PKCE
 - JWT issuer, audience, lifetime, and signing-key validation
@@ -19,6 +19,7 @@ The project is intentionally **secure by default**. Its purpose is to demonstrat
 - Security headers, health checks, non-root containers, and protected data-protection keys
 - Restricted Docker service exposure
 - Internal-only database and API communication where direct host exposure is unnecessary
+- Separate local-development and security-lab deployment profiles
 - Unit and integration tests around authorization-sensitive behavior
 
 ## User Experiences
@@ -76,13 +77,17 @@ External client     │                             │
 
 Nginx acts as the primary browser-facing reverse proxy and TLS termination point.
 
-The browser accesses the application at:
+For normal local development, the browser accesses the application at:
 
 ```text
 https://localhost:3443
 ```
 
-During future isolated security labs, the same entry point can be reached through the target machine's lab-network address or dedicated hostname.
+The same application can also be deployed into an isolated security lab where it is accessed as:
+
+```text
+https://securebank.lab:3443
+```
 
 Browser requests are routed through Nginx:
 
@@ -102,15 +107,21 @@ api → keycloak:8080
 
 This keeps backend communication available while reducing unnecessary host exposure.
 
-Keycloak issues tokens using the public issuer:
+For local development, Keycloak issues tokens using the public issuer:
 
 ```text
 https://localhost:3443/auth/realms/securebank
 ```
 
-The API validates that public issuer while retrieving OpenID Connect metadata and signing keys from Keycloak through its internal Docker address.
+In the security-lab deployment, the public issuer becomes:
 
-This keeps the externally visible OIDC identity separate from container-to-container discovery without weakening JWT validation.
+```text
+https://securebank.lab:3443/auth/realms/securebank
+```
+
+The API validates the public issuer while retrieving OpenID Connect metadata and signing keys from Keycloak through its internal Docker address.
+
+This keeps externally visible OIDC identity separate from container-to-container discovery without weakening JWT validation.
 
 The backend follows a layered architecture:
 
@@ -123,7 +134,7 @@ src/
 `-- SecureBank.Infrastructure           EF Core, Keycloak auth, persistence, health
 
 frontend/                               Vite browser client served by Nginx
-infrastructure/keycloak/                Reproducible realm configuration
+infrastructure/keycloak/                Reproducible Keycloak realm configuration
 scripts/                                Local development setup scripts
 tests/                                  Unit and integration tests
 ```
@@ -147,7 +158,7 @@ The externally reachable HTTPS frontend is intentional because it represents the
 
 By contrast, the API's internal HTTP listener and PostgreSQL database do not require direct host exposure.
 
-This distinction is useful both for hardening and for security testing:
+The intended remote path is:
 
 ```text
 External client / Kali VM
@@ -165,7 +176,25 @@ External client / Kali VM
    PostgreSQL
 ```
 
-A future attacker VM should therefore interact with SecureBank through the externally intended application surface rather than through unnecessarily exposed backend service ports.
+### Externally Observed Lab Attack Surface
+
+External enumeration from the Kali VM currently discovers:
+
+| Port | Service | Purpose |
+| ---: | --- | --- |
+| `22` | OpenSSH | Ubuntu target administration |
+| `3443` | SecureBank HTTPS / Nginx | Public application surface |
+
+The following backend ports are intentionally not remotely exposed:
+
+| Port | Service |
+| ---: | --- |
+| `5432` | PostgreSQL |
+| `8080` | API HTTP |
+| `8081` | Direct Keycloak HTTP |
+| `8443` | Direct API HTTPS |
+
+These assumptions are verified externally from the Kali VM rather than inferred only from Docker configuration.
 
 ## Security Boundaries
 
@@ -184,13 +213,21 @@ Removing a button or hiding a route does not grant or deny access; every protect
 
 ### OIDC Validation
 
-The browser-facing Keycloak issuer is:
+The browser-facing Keycloak issuer depends on the deployment profile.
+
+Local development:
 
 ```text
 https://localhost:3443/auth/realms/securebank
 ```
 
-Inside Docker, the API cannot use that `localhost` address to retrieve provider metadata or signing keys because `localhost` would refer to the API container itself rather than Keycloak.
+Security lab:
+
+```text
+https://securebank.lab:3443/auth/realms/securebank
+```
+
+Inside Docker, the API cannot use those public addresses to retrieve provider metadata or signing keys because `localhost` refers to the API container itself and the external lab hostname represents the public route rather than the internal Keycloak service.
 
 SecureBank therefore separates token identity from backchannel discovery:
 
@@ -200,7 +237,7 @@ SecureBank therefore separates token identity from backchannel discovery:
 - Signing-key validation remains enabled
 - OpenID Connect metadata and signing keys are retrieved from Keycloak through its internal Docker address
 
-This preserves the public issuer used by the browser-facing OIDC flow while allowing the API to securely retrieve Keycloak's signing keys inside the Docker network.
+This preserves the public issuer used by the browser-facing OIDC flow while allowing the API to securely retrieve Keycloak's signing keys inside Docker.
 
 ## Run Locally
 
@@ -257,7 +294,7 @@ SECUREBANK_CERT_PASSWORD=
 
 Do not commit generated certificates, private keys, or the populated `.env` file.
 
-### 2. Start the Environment
+### 2. Start the Local Environment
 
 Once the development certificates have been created, start the complete environment:
 
@@ -273,7 +310,7 @@ Open:
 
 The API automatically applies database migrations and creates repeatable development data.
 
-Keycloak configuration is imported automatically from the checked-in realm definition.
+Keycloak configuration is imported automatically from the checked-in local realm definition.
 
 A fresh environment does not require manually creating realms, clients, roles, groups, or demo users through the Keycloak administration console.
 
@@ -301,7 +338,7 @@ These credentials are development fixtures only.
 
 Do not reuse them in another environment or expose this development configuration directly to an untrusted network.
 
-### Reset the Environment
+### Reset the Local Environment
 
 To recreate the database and Keycloak realm from their checked-in definitions:
 
@@ -314,46 +351,158 @@ This removes the persistent PostgreSQL and Keycloak volumes.
 
 It does not remove the locally generated development certificates or `.env`.
 
-Keycloak imports:
+The default Keycloak realm definition is:
 
 ```text
 infrastructure/keycloak/securebank-realm.json
 ```
 
-when a new realm database is created.
-
 The checked-in realm definition contains the clients, roles, groups, users, redirect URIs, and web origins required by the local environment.
 
-Only the realm export itself is mounted into Keycloak's import directory, preventing unrelated JSON documents from being interpreted as realm definitions.
+## Security Lab Deployment
+
+SecureBank can also be deployed as a target inside an isolated VirtualBox security lab.
+
+### Lab Topology
+
+```text
+                    Internet
+                       │
+                VirtualBox NAT
+                  │         │
+                  │         │
+               Kali       Ubuntu
+                  │         │
+                  └────┬────┘
+                       │
+                securebank-lab
+                192.168.56.0/24
+                       │
+            ┌──────────┴──────────┐
+            │                     │
+      Kali attacker        SecureBank target
+      192.168.56.10        192.168.56.20
+                                  │
+                                  ▼
+                               Docker
+```
+
+Current lab addressing:
+
+```text
+Kali Linux:       192.168.56.10
+Ubuntu target:    192.168.56.20
+Lab hostname:     securebank.lab
+```
+
+The Kali VM resolves:
+
+```text
+securebank.lab → 192.168.56.20
+```
+
+The public application entry point is:
+
+```text
+https://securebank.lab:3443
+```
+
+### Lab Deployment Files
+
+The security lab uses:
+
+```text
+docker-compose.yml
+docker-compose.lab.yml
+```
+
+The base Compose file defines the common application stack.
+
+The lab override changes only configuration that differs in the VM environment, such as:
+
+- public OIDC issuer
+- Keycloak public hostname
+- lab-specific Keycloak realm import
+
+The lab-specific Keycloak configuration is stored in:
+
+```text
+infrastructure/keycloak/securebank-realm.lab.json
+```
+
+This allows local development to continue using `localhost` while the VM deployment uses `securebank.lab`.
+
+### Lab Certificates
+
+The Ubuntu target uses locally generated certificates containing the security-lab hostname and target address in the Subject Alternative Name configuration.
+
+The certificate is intentionally self-signed for the isolated lab environment.
+
+It is not intended to represent a production PKI configuration.
+
+### Start the Lab Environment
+
+From the Ubuntu target:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.lab.yml \
+  up -d --build
+```
+
+Check status:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.lab.yml \
+  ps
+```
+
+Reset the disposable lab database and Keycloak state when a clean realm import is required:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.lab.yml \
+  down --volumes
+```
+
+Then start the environment again.
 
 ## HTTPS and Reverse Proxying
 
-The local environment exposes two HTTPS entry points for different purposes.
-
 ### Primary Application Entry Point
 
-The primary browser-facing application is:
+For local development:
 
 ```text
 https://localhost:3443
 ```
 
+For the isolated security lab:
+
+```text
+https://securebank.lab:3443
+```
+
 Nginx terminates TLS on this endpoint and routes requests to the appropriate internal service.
 
-Port `3443` is deliberately published beyond loopback because it represents the application's intended external entry point and can later be reached from an isolated security-testing VM.
+Port `3443` is deliberately published beyond loopback because it represents the application's intended externally reachable entry point.
 
-Requests to the local HTTP frontend:
+Local frontend HTTP:
 
 ```text
 http://localhost:3000
 ```
 
-are restricted to loopback and redirected to the HTTPS application.
+is restricted to loopback and redirected to HTTPS.
 
 Application API requests use:
 
 ```text
-https://localhost:3443/api/*
+https://<public-host>:3443/api/*
 ```
 
 and are forwarded internally to:
@@ -367,14 +516,42 @@ The API's HTTP port `8080` is not published to the host.
 Keycloak requests use:
 
 ```text
-https://localhost:3443/auth/*
+https://<public-host>:3443/auth/*
 ```
 
 and are forwarded internally to the Keycloak container.
 
-Security headers applied by Nginx to the SecureBank application are scoped to application routes.
+Security headers applied by Nginx to SecureBank application routes include:
+
+- Content Security Policy
+- `X-Content-Type-Options`
+- `X-Frame-Options`
+- Referrer Policy
+- Permissions Policy
 
 Keycloak responses under `/auth/*` retain Keycloak's own security-header policy because its authentication and administration flows use legitimate iframe-based browser mechanisms.
+
+### Nginx Server Version Disclosure
+
+External service enumeration initially revealed:
+
+```text
+Server: nginx/1.29.8
+```
+
+The Nginx configuration was hardened using:
+
+```nginx
+server_tokens off;
+```
+
+After rebuilding the web container, the response was verified again:
+
+```text
+Server: nginx
+```
+
+This does not conceal the use of Nginx, but it removes unnecessary exact version information from normal HTTP responses.
 
 ### Direct API Development Endpoint
 
@@ -389,21 +566,17 @@ This is useful for:
 - Swagger
 - direct API testing
 - debugging
-- security labs requiring direct API interaction
+- local security experiments
 
 The endpoint is explicitly bound to `127.0.0.1` and is therefore not intended as part of the remotely accessible application surface.
 
-Remote lab clients should normally use:
+Remote lab clients normally use:
 
 ```text
-https://<target-host>:3443/api/*
+https://securebank.lab:3443/api/*
 ```
 
 through Nginx.
-
-The generated development certificate is valid for local hostnames and loopback addresses.
-
-Testing through a VM IP or dedicated lab hostname will require a certificate containing that hostname or address in its Subject Alternative Name configuration.
 
 ### PostgreSQL
 
@@ -427,11 +600,9 @@ This reduces unnecessary host exposure without affecting application functionali
 
 ### HSTS
 
-HSTS is intentionally omitted from the localhost development profile because HSTS applies to a hostname across ports and would interfere with explicit local HTTP experiments used for protocol-comparison labs.
+HSTS is intentionally omitted from the localhost development profile because HSTS applies to a hostname across ports and would interfere with explicit HTTP experiments used for protocol-comparison labs.
 
-A deployment using a dedicated production hostname should enable HSTS after HTTPS is fully established.
-
-The certificates used by these endpoints are generated locally and are not part of the repository.
+A dedicated production hostname should enable HSTS after HTTPS is fully established.
 
 ## API Surface
 
@@ -467,22 +638,22 @@ npm run build
 
 The current suite covers domain behavior, validation, application authorization, transaction handling, account isolation, and transfer-history visibility for both senders and recipients.
 
-## Security Testing and Future Labs
+## Security Testing
 
 SecureBank is suitable for testing with a browser proxy such as Burp Suite even though the UI does not expose arbitrary resource IDs.
 
 A tester can authenticate normally, intercept an API request, and modify identifiers or claims-related context to verify that the server rejects unauthorized access.
 
-The application can also be deployed as a target in an isolated security-testing environment.
-
-A planned setup uses a separate Kali Linux VM to interact with SecureBank over an isolated virtual network:
+The application is also deployed into an isolated security-testing environment using a dedicated Kali Linux attacker VM and Ubuntu target VM.
 
 ```text
 Kali Linux VM
+192.168.56.10
       │
       │ controlled security testing
       ▼
-Target VM
+Ubuntu target VM
+192.168.56.20
       │
       ▼
 SecureBank :3443
@@ -491,67 +662,87 @@ SecureBank :3443
 Docker internal services
 ```
 
-This allows:
+The environment supports:
 
 - service enumeration
 - attack-surface verification
-- HTTP/API testing
+- HTTP and API testing
+- TLS inspection
 - authentication and authorization testing
 - traffic analysis
 - controlled attack simulation
+- remediation verification
 
-without exposing unnecessary backend services directly.
+Security writeups generally follow a repeatable workflow:
 
-Planned writeups will use a repeatable format:
+1. Define the security claim or expected trust boundary.
+2. Capture expected legitimate behavior.
+3. Test the boundary from an external or untrusted perspective.
+4. Record application, network, or log evidence.
+5. Identify the defensive control responsible for the result.
+6. Remediate unnecessary exposure or weakness where appropriate.
+7. Repeat the original test.
+8. Document the final result and lessons learned.
 
-1. Define the authorization claim or security boundary.
-2. Capture the expected legitimate behavior.
-3. Modify one identifier, role context, request parameter, or network condition.
-4. Record the response and relevant evidence.
-5. Trace the defensive control to its implementation.
-6. Verify whether the control behaves as expected.
-7. Document the potential impact if the control were absent.
+### Completed Security Labs
 
-Candidate labs include:
-
+- HTTP vs HTTPS traffic analysis
+- TLS handshake and encrypted application-traffic inspection
 - Docker network exposure and service reachability
-- Nmap service enumeration
+- PostgreSQL host-exposure reduction
+- Docker-internal API communication verification
+- Nmap default and full TCP port discovery
+- Service and version fingerprinting
+- HTTP and TLS metadata enumeration
+- Nginx exact-version disclosure hardening and verification
+
+### Planned Security Labs
+
 - Firewall and network segmentation
 - BOLA/IDOR attempts against account and beneficiary identifiers
 - Cross-account transfer attempts using a foreign source account ID
 - Horizontal versus vertical privilege-boundary tests
 - JWT audience, issuer, expiry, and role-tampering validation
 - Transfer replay and idempotency-key behavior
-- HTTP versus HTTPS traffic analysis
-- TLS handshake and encrypted application-traffic inspection
 - Rate-limit verification and error-response analysis
-- Dependency, secret, container, and static-analysis scanning
+- Burp Suite API testing
+- Dependency scanning
+- Secret scanning
+- Container scanning
+- Static analysis
 - Detection engineering based on rejected authorization attempts
+- Wazuh monitoring and incident investigation
 
-All offensive testing should be performed only against the local lab environment or another system where explicit authorization has been granted.
+All offensive testing should be performed only against the isolated lab environment or another system where explicit authorization has been granted.
 
 ## Related Security Portfolio
 
 The security experiments built around SecureBank are documented separately in the cybersecurity portfolio repository.
 
-SecureBank remains the application source repository, while the portfolio contains the security methodology, evidence, observations, findings, and writeups produced during testing.
+SecureBank remains the application source repository, while the portfolio contains the security methodology, evidence, observations, findings, remediation steps, and writeups produced during testing.
 
 This separation keeps the application implementation independent from the security-lab documentation while allowing both projects to reference one another.
 
 ## Project Status
 
-The core application and its customer/staff workflows are complete enough to serve as the stable target for the next phase: structured security labs, evidence capture, remediation comparisons, and portfolio writeups.
+The core application and its customer/staff workflows are complete enough to serve as a stable target for structured security testing.
 
 The current environment includes:
 
 - reproducible Keycloak configuration
+- separate localhost and VM-lab deployment profiles
 - containerized PostgreSQL
 - HTTPS-enabled browser and API access
 - OIDC/JWT validation
 - role and resource-based authorization
 - internal Docker service networking
 - restricted host port exposure
-- a public-facing Nginx entry point suitable for future isolated VM testing
+- Kali Linux attacker VM
+- Ubuntu SecureBank target VM
+- isolated VirtualBox security network
+- externally testable SecureBank HTTPS surface
+- Nginx reverse proxying and TLS termination
+- reduced server-version disclosure
 - automated backend security and authorization tests
 
-SecureBank is now intended to remain a stable, secure-by-default target while the surrounding security portfolio evaluates its network exposure, application controls, identity boundaries, monitoring, and defensive behavior.
+SecureBank now serves as the stable application target while the surrounding cybersecurity portfolio evaluates its network exposure, application controls, identity boundaries, monitoring, and defensive behavior.
