@@ -1,51 +1,83 @@
 services:
-
   web:
     build:
       context: ./frontend
     container_name: securebank-web
+
     ports:
+      # Local development access to the plaintext frontend.
       - "127.0.0.1:3000:80"
+
+      # Public application entry point.
+      # This is intentionally published on all host interfaces so the
+      # application can later be reached from the isolated Kali lab VM.
       - "3443:443"
+
     volumes:
       - ./.certs/securebank.crt:/etc/nginx/certs/securebank.crt:ro
       - ./.certs/securebank.key:/etc/nginx/certs/securebank.key:ro
+
     depends_on:
       api:
         condition: service_healthy
+
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/healthz"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1/healthz"
+        ]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 10s
 
+
   api:
     build:
       context: .
       dockerfile: src/SecureBank.Api/Dockerfile
+
     container_name: securebank-api
+
     ports:
-      - "127.0.0.1:8080:8080"
+      # Direct HTTPS API access is retained for local development,
+      # but restricted to the host loopback interface.
       - "127.0.0.1:8443:8443"
+
+    # Port 8080 is intentionally not published to the host.
+    # Other containers can still reach the API internally at:
+    # http://securebank-api:8080
+
     volumes:
       - securebank-api-keys:/home/app/.aspnet/DataProtection-Keys
       - ./.certs/securebank.pfx:/https/securebank.pfx:ro
+
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080;https://+:8443"
+
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/securebank.pfx"
       ASPNETCORE_Kestrel__Certificates__Default__Password: "${SECUREBANK_CERT_PASSWORD}"
+
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=securebank;Username=securebank;Password=securebank_dev_password"
+
       Keycloak__Authority: "http://keycloak:8080/realms/securebank"
       Keycloak__Issuer: "https://localhost:3443/auth/realms/securebank"
       Keycloak__Audience: "securebank-api"
       Keycloak__RequireHttpsMetadata: "false"
+
     depends_on:
       postgres:
         condition: service_healthy
+
       keycloak:
         condition: service_started
+
     healthcheck:
       test:
         - CMD
@@ -60,37 +92,55 @@ services:
       retries: 5
       start_period: 20s
 
+
   postgres:
     image: postgres:18
     container_name: securebank-postgres
+
     environment:
       POSTGRES_DB: securebank
       POSTGRES_USER: securebank
       POSTGRES_PASSWORD: securebank_dev_password
-    ports:
-      - "127.0.0.1:15432:5432"
+
+    # PostgreSQL is intentionally not published to the host.
+    # The API communicates with it over the internal Docker network
+    # using postgres:5432.
+
     volumes:
       - securebank-postgres-data:/var/lib/postgresql
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U securebank -d securebank"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U securebank -d securebank"
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
 
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.3
     container_name: securebank-keycloak
+
     command: start-dev --import-realm
+
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin_dev_password
       KC_PROXY_HEADERS: xforwarded
       KC_HOSTNAME: "https://localhost:3443/auth"
+
     ports:
+      # Direct Keycloak access is useful during local development,
+      # but should not be exposed to other machines.
       - "127.0.0.1:8081:8080"
+
     volumes:
       - securebank-keycloak-data:/opt/keycloak/data
       - ./infrastructure/keycloak/securebank-realm.json:/opt/keycloak/data/import/securebank-realm.json:ro
+
 
 volumes:
   securebank-api-keys:
