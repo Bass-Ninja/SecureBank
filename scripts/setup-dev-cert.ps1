@@ -28,7 +28,6 @@ $password = [Guid]::NewGuid().ToString("N")
 # Create and trust ASP.NET development certificate
 Write-Host "Creating ASP.NET development certificate..."
 
-dotnet dev-certs https --clean
 dotnet dev-certs https --trust
 
 dotnet dev-certs https `

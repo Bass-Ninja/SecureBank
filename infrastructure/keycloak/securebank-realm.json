@@ -2,7 +2,7 @@
   "realm": "securebank",
   "displayName": "SecureBank",
   "enabled": true,
-  "sslRequired": "none",
+  "sslRequired": "external",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,

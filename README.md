@@ -259,6 +259,8 @@ https://localhost:3443
 
 Nginx terminates TLS on this endpoint and routes requests to the appropriate internal service.
 
+Requests to the local HTTP frontend at `http://localhost:3000` are redirected to the HTTPS application. The direct API, Keycloak, and HTTP frontend ports are bound to `127.0.0.1`, so they cannot bypass Nginx from another machine on the network. Port `3443` is the only browser-facing entry point exposed beyond the host.
+
 Application API requests use:
 
 ```text
@@ -288,6 +290,10 @@ https://localhost:8443
 ```
 
 This is useful for Swagger, direct API testing, and security labs such as comparing plaintext HTTP traffic with TLS-protected traffic.
+
+The direct API endpoints are deliberately localhost-only. Remote lab clients should use the Nginx endpoint at `https://<host>:3443/api/*`. The generated development certificate is valid for local hostnames and loopback addresses; testing through a VM IP requires a certificate generated with that hostname or IP in its subject alternative names.
+
+HSTS is intentionally omitted from the localhost profile because HSTS applies to a hostname across ports and would interfere with the explicit local HTTP endpoint used for protocol-comparison labs. A deployment on a dedicated production hostname should enable HSTS after HTTPS is fully established.
 
 The certificates used by these endpoints are generated locally and are not part of the repository.
 

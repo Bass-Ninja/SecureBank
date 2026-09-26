@@ -5,7 +5,7 @@ services:
       context: ./frontend
     container_name: securebank-web
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
       - "3443:443"
     volumes:
       - ./.certs/securebank.crt:/etc/nginx/certs/securebank.crt:ro
@@ -26,8 +26,8 @@ services:
       dockerfile: src/SecureBank.Api/Dockerfile
     container_name: securebank-api
     ports:
-      - "8080:8080"
-      - "8443:8443"
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8443:8443"
     volumes:
       - securebank-api-keys:/home/app/.aspnet/DataProtection-Keys
       - ./.certs/securebank.pfx:/https/securebank.pfx:ro
@@ -87,7 +87,7 @@ services:
       KC_PROXY_HEADERS: xforwarded
       KC_HOSTNAME: "https://localhost:3443/auth"
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     volumes:
       - securebank-keycloak-data:/opt/keycloak/data
       - ./infrastructure/keycloak/securebank-realm.json:/opt/keycloak/data/import/securebank-realm.json:ro
