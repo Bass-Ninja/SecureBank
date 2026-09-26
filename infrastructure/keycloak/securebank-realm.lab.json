@@ -1,0 +1,178 @@
+{
+  "realm": "securebank",
+  "displayName": "SecureBank",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+
+  "roles": {
+    "realm": [
+      {
+        "name": "customer",
+        "description": "SecureBank customer"
+      },
+      {
+        "name": "support",
+        "description": "SecureBank support user"
+      },
+      {
+        "name": "admin",
+        "description": "SecureBank administrator"
+      }
+    ]
+  },
+
+  "groups": [
+    {
+      "name": "bank-staff",
+      "realmRoles": ["support"]
+    }
+  ],
+
+  "clients": [
+    {
+      "clientId": "securebank-api",
+      "name": "SecureBank API",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "bearerOnly": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false
+    },
+
+    {
+      "clientId": "securebank-swagger",
+      "name": "SecureBank Swagger",
+      "enabled": true,
+      "clientAuthenticatorType": "none",
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+
+      "redirectUris": [
+        "http://localhost:5000/swagger/oauth2-redirect.html",
+        "http://localhost:8080/swagger/oauth2-redirect.html",
+        "https://localhost:7056/swagger/oauth2-redirect.html",
+        "https://localhost:8443/swagger/oauth2-redirect.html"
+      ],
+
+      "webOrigins": [
+        "http://localhost:5000",
+        "http://localhost:8080",
+        "https://localhost:7056",
+        "https://localhost:8443"
+      ],
+
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+
+      "protocolMappers": [
+        {
+          "name": "securebank-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "securebank-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+
+    {
+      "clientId": "securebank-web",
+      "name": "SecureBank Web",
+      "enabled": true,
+      "clientAuthenticatorType": "none",
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+
+      "redirectUris": [
+        "https://securebank.lab:3443/*"
+      ],
+      "webOrigins": [
+        "https://securebank.lab:3443"
+      ],
+
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+
+      "protocolMappers": [
+        {
+          "name": "securebank-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "securebank-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+
+  "users": [
+    {
+      "id": "0406f376-1a90-45a8-a117-09a96c051983",
+      "username": "nina",
+      "firstName": "Nina",
+      "lastName": "SecureBank",
+      "email": "nina@securebank.local",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "SecureBank123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "customer"
+      ]
+    },
+    {
+      "id": "6f0a8b0e-2b9a-4c9f-9d2a-8a9a2e6f9b21",
+      "username": "staff1",
+      "firstName": "Staff",
+      "lastName": "SecureBank",
+      "email": "staff1@securebank.local",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "SecureBank123!",
+          "temporary": false
+        }
+      ],
+      "groups": ["/bank-staff"]
+    }
+  ]
+}

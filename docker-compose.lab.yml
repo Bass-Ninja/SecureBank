@@ -1,0 +1,11 @@
+services:
+  api:
+    environment:
+      Keycloak__Issuer: "https://securebank.lab:3443/auth/realms/securebank"
+
+  keycloak:
+    environment:
+      KC_HOSTNAME: "https://securebank.lab:3443/auth"
+
+    volumes:
+      - ./infrastructure/keycloak/securebank-realm.lab.json:/opt/keycloak/data/import/securebank-realm.json:ro
