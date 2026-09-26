@@ -20,6 +20,8 @@ The project is intentionally **secure by default**. Its purpose is to demonstrat
 - Restricted Docker service exposure
 - Internal-only database and API communication where direct host exposure is unnecessary
 - Separate local-development and security-lab deployment profiles
+- Host firewall enforcement for management-plane access
+- Firewall logging for blocked security-lab traffic
 - Unit and integration tests around authorization-sensitive behavior
 
 ## User Experiences
@@ -178,12 +180,21 @@ External client / Kali VM
 
 ### Externally Observed Lab Attack Surface
 
-External enumeration from the Kali VM currently discovers:
+External enumeration from the Kali VM was initially able to discover:
 
-| Port | Service | Purpose |
-| ---: | --- | --- |
-| `22` | OpenSSH | Ubuntu target administration |
-| `3443` | SecureBank HTTPS / Nginx | Public application surface |
+| Port | Service | Initial State | Purpose |
+| ---: | --- | --- | --- |
+| `22` | OpenSSH | Open | Ubuntu target administration |
+| `3443` | SecureBank HTTPS / Nginx | Open | Public application surface |
+
+After host firewall rules were introduced on the Ubuntu target, the externally observed state became:
+
+| Port | Service | Current State | Purpose |
+| ---: | --- | --- | --- |
+| `22` | OpenSSH | Filtered from Kali | Ubuntu target administration |
+| `3443` | SecureBank HTTPS / Nginx | Open | Public application surface |
+
+The SSH service remains active on Ubuntu, but connections arriving from the attacker-facing lab interface are blocked by UFW.
 
 The following backend ports are intentionally not remotely exposed:
 
@@ -195,6 +206,22 @@ The following backend ports are intentionally not remotely exposed:
 | `8443` | Direct API HTTPS |
 
 These assumptions are verified externally from the Kali VM rather than inferred only from Docker configuration.
+
+### Public Application vs Management Plane
+
+The security-lab configuration distinguishes between the intended application surface and the management plane.
+
+```text
+Kali attacker
+     │
+     ├── TCP/3443 → SecureBank HTTPS → allowed
+     │
+     └── TCP/22   → SSH              → filtered
+```
+
+SecureBank remains remotely accessible while SSH management access is blocked from the attacker network.
+
+This reduces unnecessary management-plane exposure without stopping the SSH daemon itself.
 
 ## Security Boundaries
 
@@ -471,6 +498,102 @@ docker compose \
 
 Then start the environment again.
 
+### Host Firewall and Service Segmentation
+
+The Ubuntu target uses UFW to distinguish between the public application surface and management access.
+
+The lab-facing Ubuntu interface is:
+
+```text
+enp0s8
+192.168.56.20/24
+```
+
+The firewall uses a default-deny incoming policy:
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+```
+
+SecureBank HTTPS is explicitly allowed through the lab interface:
+
+```bash
+sudo ufw allow in on enp0s8 to any port 3443 proto tcp
+```
+
+SSH is blocked from the attacker-facing interface and matching attempts are logged:
+
+```bash
+sudo ufw deny in on enp0s8 log proto tcp to any port 22
+```
+
+After enabling UFW, external verification from Kali showed:
+
+```text
+22/tcp   filtered
+3443/tcp open
+```
+
+SecureBank continued to return:
+
+```text
+HTTP/1.1 200 OK
+```
+
+while SSH connections from Kali timed out.
+
+The SSH daemon itself remained:
+
+```text
+active (running)
+```
+
+and continued listening on port `22`.
+
+This confirms that the security control restricts network access rather than disabling the management service.
+
+### Firewall Logging
+
+Blocked SSH attempts from Kali generate firewall events containing fields such as:
+
+```text
+SRC=192.168.56.10
+DST=192.168.56.20
+DPT=22
+PROTO=TCP
+```
+
+This provides both:
+
+```text
+prevention
++
+visibility
+```
+
+The same telemetry can later be forwarded into a SIEM such as Wazuh for detection engineering and alerting.
+
+### Host Firewall vs Full Network Segmentation
+
+Kali and Ubuntu remain on the same subnet:
+
+```text
+192.168.56.0/24
+```
+
+The current control therefore represents:
+
+```text
+host firewall enforcement
++
+service segmentation
+```
+
+rather than full VLAN or subnet-based network segmentation.
+
+A future expansion could introduce separate management and attacker networks with routing and firewall policy between them.
+
 ## HTTPS and Reverse Proxying
 
 ### Primary Application Entry Point
@@ -655,6 +778,8 @@ Kali Linux VM
 Ubuntu target VM
 192.168.56.20
       │
+      ├── SSH :22 ───── filtered from Kali
+      │
       ▼
 SecureBank :3443
       │
@@ -670,6 +795,8 @@ The environment supports:
 - TLS inspection
 - authentication and authorization testing
 - traffic analysis
+- firewall and service-access testing
+- blocked-traffic logging
 - controlled attack simulation
 - remediation verification
 
@@ -695,10 +822,13 @@ Security writeups generally follow a repeatable workflow:
 - Service and version fingerprinting
 - HTTP and TLS metadata enumeration
 - Nginx exact-version disclosure hardening and verification
+- Host firewall and service segmentation
+- SSH management-plane filtering
+- UFW blocked-traffic logging
+- Firewall remediation verification from Kali
 
 ### Planned Security Labs
 
-- Firewall and network segmentation
 - BOLA/IDOR attempts against account and beneficiary identifiers
 - Cross-account transfer attempts using a foreign source account ID
 - Horizontal versus vertical privilege-boundary tests
@@ -712,6 +842,7 @@ Security writeups generally follow a repeatable workflow:
 - Static analysis
 - Detection engineering based on rejected authorization attempts
 - Wazuh monitoring and incident investigation
+- Full subnet/VLAN-based network segmentation
 
 All offensive testing should be performed only against the isolated lab environment or another system where explicit authorization has been granted.
 
@@ -743,6 +874,10 @@ The current environment includes:
 - externally testable SecureBank HTTPS surface
 - Nginx reverse proxying and TLS termination
 - reduced server-version disclosure
+- UFW host firewall enforcement
+- SSH management-plane filtering
+- firewall logging for blocked lab traffic
+- externally verified service segmentation
 - automated backend security and authorization tests
 
 SecureBank now serves as the stable application target while the surrounding cybersecurity portfolio evaluates its network exposure, application controls, identity boundaries, monitoring, and defensive behavior.
