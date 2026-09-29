@@ -2,7 +2,7 @@
 
 SecureBank is a security-focused banking API and browser application built with .NET, PostgreSQL, Keycloak, Nginx, and Docker. It models account ownership, money transfers, beneficiaries, staff access, and the authorization boundaries expected in a financial system.
 
-The project is intentionally **secure by default**. Its purpose is to demonstrate application-security engineering and provide a realistic target for authorization testing, traffic inspection, threat modelling, network-security experiments, API assessment, and defensive writeups.
+The project is intentionally **secure by default**. Its purpose is to demonstrate application-security engineering and provide a realistic target for authorization testing, traffic inspection, threat modelling, network-security experiments, API assessment, automated security scanning, hardening, and defensive writeups.
 
 ## What It Demonstrates
 
@@ -29,6 +29,10 @@ The project is intentionally **secure by default**. Its purpose is to demonstrat
 - Host firewall enforcement for management-plane access
 - Firewall logging for blocked traffic
 - Externally observable API security boundaries
+- Automated application-security scanning
+- Manual validation of scanner findings
+- SPA routing and soft-404 handling
+- Nginx proxy-location precedence
 - Unit and integration tests around authorization-sensitive behavior
 
 ## User Experiences
@@ -79,7 +83,7 @@ External client     │                             │
       │             │               + JWKS    │   │
       │             │                         │   │
       └── /auth/* ──┼────────────> Keycloak   │   │
-                    │                 :8080    │   │
+                    │                :8080     │   │
                     └─────────────────────────────┘
 ```
 
@@ -101,7 +105,9 @@ Internal services communicate through Docker networking:
 
 ```text
 web → api:8080
+
 api → postgres:5432
+
 api → keycloak:8080
 ```
 
@@ -237,7 +243,7 @@ However, object-level identifiers still appear in resource operations and requir
 
 ## Object-Level Authorization Boundaries
 
-External API reconnaissance identified several important boundaries.
+External API reconnaissance identified several important object-level authorization boundaries.
 
 ### Transfer Source Account
 
@@ -268,6 +274,25 @@ sourceAccountId
 account ownership
 ```
 
+This boundary was explicitly tested in the security lab.
+
+Using one customer's bearer token with another customer's `sourceAccountId` and a fresh `Idempotency-Key` resulted in:
+
+```http
+HTTP/1.1 403 Forbidden
+```
+
+```json
+{
+  "title": "Access forbidden.",
+  "status": 403,
+  "detail": "You are not allowed to transfer from this account.",
+  "instance": "/api/transfers"
+}
+```
+
+This confirmed that transfer-source ownership is enforced on the server.
+
 ### Beneficiary Deletion
 
 ```http
@@ -286,7 +311,92 @@ beneficiary ID
 beneficiary ownership
 ```
 
-These boundaries are candidates for explicit BOLA/IDOR validation in later security labs.
+This boundary was also explicitly tested.
+
+A deletion request authenticated as one customer was modified to reference another customer's beneficiary ID.
+
+The API returned:
+
+```http
+HTTP/1.1 404 Not Found
+```
+
+```json
+{
+  "title": "Resource not found.",
+  "status": 404,
+  "detail": "The beneficiary was not found.",
+  "instance": "/api/beneficiaries/<foreign-beneficiary-id>"
+}
+```
+
+The foreign beneficiary remained intact after the request.
+
+This confirmed that unauthorized beneficiary deletion was prevented.
+
+## Validated Security Controls
+
+The lab currently includes explicit validation of several security controls.
+
+### Transfer Ownership
+
+```text
+customer A token
++
+customer B sourceAccountId
++
+fresh Idempotency-Key
+↓
+403 Forbidden
+```
+
+Result:
+
+```text
+cross-user transfer prevented
+```
+
+### Beneficiary Ownership
+
+```text
+customer A token
++
+customer B beneficiary ID
+↓
+404 Not Found
+```
+
+Verification:
+
+```text
+beneficiary remained intact
+```
+
+Result:
+
+```text
+cross-user deletion prevented
+```
+
+### Host Exposure
+
+```text
+backend container service
+≠
+remotely reachable host service
+```
+
+API and PostgreSQL remain internal while Nginx provides the public application entry point.
+
+### Firewall Segmentation
+
+```text
+sshd running
++
+22/tcp filtered from attacker network
+```
+
+Management-plane access can therefore be restricted independently from service state.
 
 ## Run Locally
 
@@ -372,14 +482,14 @@ infrastructure/keycloak/securebank-realm.json
 ```text
                     Internet
                        │
-                VirtualBox NAT
-                  │         │
-               Kali       Ubuntu
-                  │         │
-                  └────┬────┘
-                       │
-                securebank-lab
-                192.168.56.0/24
+                 VirtualBox NAT
+                   │         │
+                Kali       Ubuntu
+                   │         │
+                   └────┬────┘
+                        │
+                 securebank-lab
+                 192.168.56.0/24
 ```
 
 Addressing:
@@ -426,6 +536,16 @@ docker compose \
   -f docker-compose.lab.yml \
   down --volumes
 ```
+
+The lab override is required when running SecureBank on the Ubuntu target.
+
+It provides the correct externally visible hostname and Keycloak proxy configuration for:
+
+```text
+https://securebank.lab:3443
+```
+
+Launching only the base Compose file can cause Keycloak to generate URLs using the local-development host instead of the lab hostname.
 
 ## Host Firewall
 
@@ -494,7 +614,15 @@ Keycloak:
 https://<public-host>:3443/auth/*
 ```
 
+internally:
+
+```text
+http://keycloak:8080
+```
+
 ## Nginx Security Hardening
+
+### Version Disclosure
 
 Initial response:
 
@@ -513,6 +641,85 @@ Verified result:
 ```text
 Server: nginx
 ```
+
+### SPA Fallback Handling
+
+The frontend uses client-side routing.
+
+A standard SPA fallback:
+
+```nginx
+location / {
+    try_files $uri $uri/ /index.html;
+}
+```
+
+allows extensionless application routes to load correctly.
+
+However, automated security testing showed that missing file-like paths could also fall back to `index.html` and return:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/html
+```
+
+This caused scanners to report nonexistent backup files, certificate files, archives, and other resources as apparent findings.
+
+File-like paths were therefore changed to require a real file:
+
+```nginx
+location ~ \.[^/]+$ {
+    try_files $uri =404;
+}
+```
+
+This preserves normal SPA routing while causing nonexistent file-like resources to return:
+
+```http
+404 Not Found
+```
+
+instead of the application shell.
+
+### Proxy Location Precedence
+
+The file-matching regex initially also matched static resources below proxied paths such as Keycloak:
+
+```text
+/auth/resources/.../styles.css
+```
+
+The API and Keycloak proxy locations therefore use explicit prefix precedence:
+
+```nginx
+location ^~ /api/ {
+    ...
+}
+
+location ^~ /auth/ {
+    ...
+}
+```
+
+The `^~` modifier prevents later regular-expression locations from incorrectly handling proxied resources.
+
+### Security Header Scope
+
+Frontend security headers include controls such as:
+
+```text
+X-Content-Type-Options
+X-Frame-Options
+Referrer-Policy
+Permissions-Policy
+Content-Security-Policy
+```
+
+Nginx location matching and internal redirects were verified because moving requests between locations can affect `add_header` inheritance.
+
+The frontend Content Security Policy is not blindly imposed on Keycloak pages because the authentication UI has different script and resource requirements.
+
+Security headers are therefore scoped according to the content being served rather than applied globally without context.
 
 ## PostgreSQL
 
@@ -583,7 +790,111 @@ Idempotency-Key: <UUID>
 
 This is intended to prevent duplicate execution of the same logical transfer.
 
-Replay behavior will be validated in a dedicated security lab.
+During BOLA testing, replaying a modified transfer request while reusing an existing idempotency key returned the previously created:
+
+```text
+transferId
+```
+
+instead of processing the request as a new transfer.
+
+Conceptually:
+
+```text
+same Idempotency-Key
++
+modified request body
+↓
+existing transfer result returned
+```
+
+For authorization testing, a fresh idempotency key was therefore required.
+
+This observation does not replace a dedicated replay/idempotency assessment.
+
+Request-fingerprint behavior, duplicate submission semantics, and replay resistance remain candidates for a separate lab.
+
+## Automated Security Scanning
+
+SecureBank has also been evaluated using automated web-security scanning in the isolated lab.
+
+Testing included:
+
+```text
+passive
+safe
+aggressive
+```
+
+scan profiles.
+
+The scanner was used together with external tools including:
+
+```text
+Nmap
+Nikto
+sqlmap
+SSL/TLS tooling
+```
+
+Automated findings were treated as candidates rather than automatically accepted vulnerabilities.
+
+### Scanner Validation Principle
+
+```text
+scanner finding
+↓
+manual reproduction
+↓
+context analysis
+↓
+confirmed issue
+or
+false positive
+```
+
+### SPA Soft-404 Findings
+
+Automated scans initially reported a large number of apparent sensitive files and management endpoints.
+
+Examples included paths resembling:
+
+```text
+/admin
+/administrator
+/actuator
+/actuator/env
+/metrics
+/backup.tar
+/site.war
+/database.jks
+```
+
+Manual `curl` validation showed that many nonexistent paths returned the same SecureBank SPA shell.
+
+For extensionless routes, this remains an expected consequence of client-side routing.
+
+For missing file-like resources, Nginx was hardened to return a real `404`.
+
+This significantly reduced scanner noise.
+
+### Remaining Expected or Hardening Findings
+
+Examples of remaining scanner observations include:
+
+```text
+self-signed development certificate
+missing HSTS
+missing Cross-Origin-Opener-Policy
+missing Cross-Origin-Resource-Policy
+missing security.txt
+```
+
+The self-signed certificate is expected in the controlled lab.
+
+Other findings are treated as hardening items and evaluated in context rather than automatically classified as exploitable vulnerabilities.
+
+Detailed scanner methodology and before/after results are documented in the separate cybersecurity portfolio.
 
 ## Testing
 
@@ -615,7 +926,14 @@ The isolated lab currently supports:
 - API reconnaissance
 - authenticated Burp proxying
 - object-identifier mapping
+- horizontal authorization testing
+- BOLA/IDOR validation
 - authorization-boundary analysis
+- transfer idempotency observation
+- automated web-security scanning
+- scanner false-positive validation
+- Nginx routing analysis
+- security-header verification
 - controlled security testing
 - remediation verification
 
@@ -637,18 +955,31 @@ The isolated lab currently supports:
 - object-identifier mapping
 - transfer ownership-boundary identification
 - beneficiary ownership-boundary identification
+- transfer-source BOLA/IDOR testing
+- beneficiary BOLA/IDOR testing
+- cross-user transfer authorization verification
+- cross-user beneficiary-deletion authorization verification
 - idempotency-control identification
+- transfer idempotency behavior observation
+- automated passive/safe/aggressive web scanning
+- scanner false-positive validation
+- SPA soft-404 investigation
+- file-like missing-resource hardening
+- Nginx proxy-location precedence hardening
+- frontend security-header verification
+- Keycloak/frontend CSP separation
+- remediation verification after Nginx changes
 
 ### Planned Security Labs
 
-- transfer-source BOLA/IDOR testing
-- beneficiary BOLA/IDOR testing
-- horizontal authorization testing
-- vertical authorization testing
+- broken function-level authorization / vertical authorization testing
 - JWT validation and tampering
-- transfer replay and idempotency verification
+- dedicated transfer replay and idempotency verification
 - rate-limit verification
 - malformed input/error handling
+- mass-assignment testing
+- CORS validation
+- security-header review
 - dependency scanning
 - secret scanning
 - container scanning
@@ -679,14 +1010,21 @@ The environment currently includes:
 - OIDC/JWT authentication
 - role-based authorization
 - object-level authorization controls
+- validated transfer ownership enforcement
+- validated beneficiary ownership enforcement
 - internal Docker networking
 - restricted service exposure
 - isolated Kali attacker VM
 - Ubuntu target VM
 - host firewalling
 - Nginx hardening
+- SPA-aware routing behavior
+- explicit API and Keycloak proxy precedence
+- scoped frontend security headers
 - externally observable API attack surface
 - Burp-compatible authenticated testing workflow
+- automated web-security scanning workflow
+- manual scanner-result validation
 - automated backend security and authorization tests
 
-The surrounding security portfolio now evaluates SecureBank from both network and application-security perspectives.
+The surrounding security portfolio now evaluates SecureBank from both network and application-security perspectives, while SecureBank itself remains the implementation-focused repository for the application, infrastructure, and defensive controls.
