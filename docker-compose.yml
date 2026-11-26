@@ -13,7 +13,8 @@ services:
       - ./.certs/securebank.key:/etc/nginx/certs/securebank.key:ro
 
     networks:
-      - frontend-network
+      - web-network
+      - app-network
 
     depends_on:
       web:
@@ -45,7 +46,7 @@ services:
     container_name: securebank-web
 
     networks:
-      - frontend-network
+      - web-network
 
     healthcheck:
       test:
@@ -118,7 +119,7 @@ services:
       start_period: 20s
 
     networks:
-      - frontend-network
+      - app-network
       - backend-network
 
 
@@ -174,7 +175,7 @@ services:
       - ./infrastructure/keycloak/securebank-realm.json:/opt/keycloak/data/import/securebank-realm.json:ro
     
     networks:
-      - frontend-network
+      - app-network
 
 
 volumes:
@@ -183,8 +184,13 @@ volumes:
   securebank-keycloak-data:
 
 networks:
-  frontend-network:
+  web-network:
     driver: bridge
+    internal: true
+
+  app-network:
+    driver: bridge
+    internal: false
 
   backend-network:
     driver: bridge
