@@ -2,7 +2,7 @@
 
 SecureBank is a security-focused banking API and browser application built with .NET, PostgreSQL, Keycloak, Nginx, and Docker. It models account ownership, money transfers, beneficiaries, staff access, and the authorization boundaries expected in a financial system.
 
-The project is intentionally **secure by default**. Its purpose is to demonstrate application-security engineering and provide a realistic target for authorization testing, traffic inspection, threat modelling, network-security experiments, API assessment, automated security scanning, hardening, and defensive writeups.
+The project is designed around **secure-by-default principles** and is intended for controlled development and lab use, not production banking. Its purpose is to demonstrate application-security engineering and provide a realistic target for authorization testing, traffic inspection, threat modelling, network-security experiments, API assessment, automated security scanning, hardening, and defensive writeups.
 
 ## What It Demonstrates
 
@@ -24,7 +24,10 @@ The project is intentionally **secure by default**. Its purpose is to demonstrat
 - Non-root containers
 - Protected data-protection keys
 - Restricted Docker service exposure
-- Internal-only database and API communication
+- Segmented Docker bridge networks and restricted database access
+- Dedicated TLS gateway and isolated static frontend
+- Dynamic upstream DNS resolution
+- Linux routing and Docker-managed firewall inspection
 - Separate local-development and security-lab deployment profiles
 - Host firewall enforcement for management-plane access
 - Firewall logging for blocked traffic
@@ -61,57 +64,42 @@ The frontend reflects this boundary, but the API remains the authority.
 
 ## Architecture
 
-```text
-                          Docker network
+The deployment separates browser-facing TLS termination from static frontend hosting. Both Nginx services use `nginx:1.30.8-alpine`.
 
-                    ┌─────────────────────────────┐
-                    │                             │
-External client     │                             │
-      │             │                             │
-      │ HTTPS       │                             │
-      ▼             │                             │
- Nginx :3443 ───────┼─────────────────────────┐   │
-      │             │                         │   │
-      ├── /api/* ───┼──> SecureBank API :8080│   │
-      │             │          │              │   │
-      │             │          ├──> PostgreSQL│   │
-      │             │          │      :5432   │   │
-      │             │          │              │   │
-      │             │          └──> Keycloak  │   │
-      │             │               :8080     │   │
-      │             │               metadata  │   │
-      │             │               + JWKS    │   │
-      │             │                         │   │
-      └── /auth/* ──┼────────────> Keycloak   │   │
-                    │                :8080     │   │
-                    └─────────────────────────────┘
+```mermaid
+flowchart TD
+    C[Browser] -->|HTTPS :3443| G[Gateway :443]
+    G -->|web-network /| WEB[Web :80]
+    G -->|app-network /api/| API[API :8080]
+    G -->|app-network /auth/| KC[Keycloak :8080]
+    API -->|app-network OIDC metadata and JWKS| KC
+    API -->|backend-network TCP :5432| DB[PostgreSQL]
 ```
 
-Nginx acts as the primary browser-facing reverse proxy and TLS termination point.
+The gateway belongs to both the web and app networks; the API belongs to both the app and backend networks. The diagram shows application traffic; the membership table below is authoritative for network attachments.
 
-Local development:
+| Service | `web-network` | `app-network` | `backend-network` |
+| --- | :---: | :---: | :---: |
+| Gateway | Yes | Yes | — |
+| Web | Yes | — | — |
+| API | — | Yes | Yes |
+| Keycloak | — | Yes | — |
+| PostgreSQL | — | — | Yes |
+| Driver | bridge | bridge | bridge |
+| `internal` | true | false | true |
 
-```text
-https://localhost:3443
-```
+- **Gateway:** terminates TLS and proxies requests to the appropriate service.
+- **Web:** serves the React build and handles SPA routing; no published ports or TLS key mounts.
+- **API:** implements business logic and authorization, accesses PostgreSQL and retrieves Keycloak metadata.
+- **Keycloak:** provides identity and OIDC services.
+- **PostgreSQL:** persists application data on the isolated backend network.
 
-Security lab:
+React executes in the browser, which sends API and authentication requests through the gateway. The Web container does not need direct access to either service.
 
-```text
-https://securebank.lab:3443
-```
+Local development: `https://localhost:3443`  
+Security lab: `https://securebank.lab:3443`
 
-Internal services communicate through Docker networking:
-
-```text
-web → api:8080
-
-api → postgres:5432
-
-api → keycloak:8080
-```
-
-The API and PostgreSQL do not require directly published host ports for normal application operation.
+The internal networks restrict cross-network forwarding and normal outbound connectivity for internal-only containers. The app network remains non-internal, so gateway, API and Keycloak are expected to retain outbound connectivity. This is network segmentation, not a complete per-service firewall: services sharing a network may communicate, and a compromised API can still reach PostgreSQL.
 
 ## OIDC Architecture
 
@@ -155,6 +143,7 @@ src/
 
 frontend/
 infrastructure/keycloak/
+infrastructure/nginx/
 scripts/
 tests/
 ```
@@ -165,14 +154,17 @@ Commands and queries pass through validation, authorization, logging, performanc
 
 | Service | Container Port | Host Exposure | Purpose |
 | --- | ---: | --- | --- |
-| Web HTTPS | `443` | `0.0.0.0:3443` / `[::]:3443` | Primary external entry point |
-| Web HTTP | `80` | `127.0.0.1:3000` | Local redirect testing |
+| Gateway HTTPS | `443` | `0.0.0.0:3443` / `[::]:3443` | Primary external entry point |
+| Gateway HTTP | `80` | `127.0.0.1:3000` | Local redirect testing |
+| Web HTTP (static frontend) | `80` | Not published | Internal static file serving |
 | API HTTPS | `8443` | `127.0.0.1:8443` | Local Swagger/direct API |
 | API HTTP | `8080` | Not published | Internal reverse-proxy/API communication |
 | Keycloak HTTP | `8080` | `127.0.0.1:8081` | Local development/admin access |
 | PostgreSQL | `5432` | Not published | Internal database communication |
 
 ### Lab Attack Surface
+
+The following scan results predate the gateway/network refactor; a fresh external scan is planned.
 
 Before host firewall hardening:
 
@@ -386,7 +378,7 @@ backend container service
 remotely reachable host service
 ```
 
-API and PostgreSQL remain internal while Nginx provides the public application entry point.
+PostgreSQL has no published host port. API HTTP is internal; its HTTPS development endpoint is published on host loopback only. The dedicated gateway provides the public application entry point.
 
 ### Firewall Segmentation
 
@@ -397,6 +389,38 @@ sshd running
 ```
 
 Management-plane access can therefore be restricted independently from service state.
+
+### Network Segmentation Verification (2026-11-26)
+
+The following observations were made on the Ubuntu lab after the three-network refactor. Container addresses are assigned dynamically; the addresses below are a snapshot, not configuration requirements.
+
+| Test | Observed result |
+| --- | --- |
+| Web → gateway `/healthz` | Healthy |
+| Web → API / Keycloak DNS | SERVFAIL |
+| Web → API / Keycloak direct IP, TCP 8080 | Network unreachable |
+| Web → PostgreSQL direct IP, TCP 5432 | Network unreachable |
+| Web → `8.8.8.8` (ICMP) | Network unreachable |
+| Ubuntu host → `8.8.8.8` (ICMP) | Successful |
+| Gateway → PostgreSQL direct IP, TCP 5432 | Timed out |
+| Gateway route lookup for PostgreSQL | Route via app-network bridge exists |
+
+Observed subnets: `app-network` = `172.18.0.0/16`, `backend-network` = `172.19.0.0/16`, `web-network` = `172.21.0.0/16`.
+
+Example diagnostic commands (run from the Compose project directory):
+
+```bash
+docker network inspect securebank_web-network
+docker compose exec web ip route
+docker compose exec web nslookup api
+docker compose exec gateway ip route get 172.19.0.2
+docker compose exec gateway nc -zvw 3 172.19.0.2 5432
+sudo iptables -L DOCKER-INTERNAL -n -v --line-numbers
+```
+
+The Web routing table contained only its directly connected subnet. The gateway had a default route via the app network, but Docker's `DOCKER-INTERNAL` chain contained a drop rule for traffic entering the backend bridge from outside its subnet. Its nonzero counter was consistent with blocked traffic; a controlled before/after counter comparison is still to be confirmed.
+
+Both Nginx configurations passed syntax validation during the gateway refactor. Container health and network membership were inspected after deployment. Full end-to-end authentication, fresh external enumeration, API-to-database connectivity revalidation and dynamic DNS recovery with a confirmed IP change remain follow-up checks after the final segmentation change.
 
 ## Run Locally
 
@@ -450,21 +474,11 @@ Open:
 
 ### Demo Identities
 
-| Persona | Username | Password | Role |
-| --- | --- | --- | --- |
-| Customer | `nina` | `SecureBank123!` | `customer` |
-| Support agent | `staff1` | `SecureBank123!` | `support` |
-
-Development Keycloak administrator:
-
-```text
-Username: admin
-Password: admin_dev_password
-```
-
-These are development fixtures only.
+The imported development realm provides customer and support-agent demo identities (`nina` and `staff1`) and a development administrator. Consult the local realm and Compose configuration for fixture credentials. These are for disposable development/lab use only; do not reuse them in production or expose the lab publicly.
 
 ### Reset Local Environment
+
+**Warning:** `--volumes` deletes persisted application and identity data. Use only for an intentional disposable lab reset.
 
 ```powershell
 docker compose down --volumes
@@ -528,7 +542,7 @@ docker compose \
   up -d --build
 ```
 
-Reset:
+Reset (destructive; removes persisted volumes):
 
 ```bash
 docker compose \
@@ -582,6 +596,12 @@ Result:
 3443/tcp open
 ```
 
+### Docker and UFW interaction
+
+UFW restricts host management-plane access, including SSH on `enp0s8`. Docker also manages forwarding and NAT rules for bridge networks and published ports. Published container traffic can traverse `FORWARD` rather than the host `INPUT` chain; an INPUT rule alone is not proof of container-port isolation.
+
+The lab inspection identified `DOCKER-USER`, `DOCKER-FORWARD` and `DOCKER-INTERNAL` chains. Network isolation is enforced through routing and Docker-managed filtering. The observed `DOCKER-USER` chain was empty. NAT packet flow and a fresh external scan are planned; no comprehensive custom egress firewall is claimed.
+
 ## HTTPS and Reverse Proxying
 
 Local:
@@ -620,7 +640,33 @@ internally:
 http://keycloak:8080
 ```
 
+The gateway configuration lives at `infrastructure/nginx/nginx.conf` and is mounted read-only. The frontend has its own Nginx configuration at `frontend/nginx.conf`.
+
+| Browser path | Gateway upstream | URI handling |
+| --- | --- | --- |
+| `/` | `web:80` | Preserve path |
+| `/api/` | `api:8080` | Preserve `/api/` prefix |
+| `/auth/` | `keycloak:8080` | Strip `/auth/` prefix |
+
+The gateway forwards the public port (`3443`) to API and Keycloak and the `/auth` prefix to Keycloak. Gateway TLS uses TLS 1.2/1.3. The gateway's `/healthz` checks the gateway itself, not upstream availability.
+
 ## Nginx Security Hardening
+
+### Dynamic Upstream DNS
+
+Docker service IP addresses can change when containers are recreated. The gateway uses Docker's embedded DNS resolver and dynamically resolved upstream groups rather than relying on startup-only resolution.
+
+```nginx
+resolver 127.0.0.11 valid=10s ipv6=off;
+resolver_timeout 5s;
+
+upstream api_backend {
+    zone api_backend 64k;
+    server api:8080 resolve;
+}
+```
+
+Equivalent upstream groups are configured for Web and Keycloak. This is designed to refresh upstream addresses without restarting Nginx; recovery after a confirmed address change is a planned verification.
 
 ### Version Disclosure
 
@@ -683,29 +729,13 @@ instead of the application shell.
 
 ### Proxy Location Precedence
 
-The file-matching regex initially also matched static resources below proxied paths such as Keycloak:
+Before the gateway split, the static-file regex and API/Keycloak proxy locations shared one Nginx configuration. Explicit `^~` prefix locations prevented file-like Keycloak resources from being intercepted by the regex.
 
-```text
-/auth/resources/.../styles.css
-```
-
-The API and Keycloak proxy locations therefore use explicit prefix precedence:
-
-```nginx
-location ^~ /api/ {
-    ...
-}
-
-location ^~ /auth/ {
-    ...
-}
-```
-
-The `^~` modifier prevents later regular-expression locations from incorrectly handling proxied resources.
+The current architecture separates these responsibilities: the gateway routes `/api/` and `/auth/` to their respective upstreams, while the Web container handles static files and SPA fallback. The earlier precedence fix is retained here as historical context, not as a requirement for a shared proxy/static server.
 
 ### Security Header Scope
 
-Frontend security headers include controls such as:
+The Web container applies frontend-specific security headers at server scope. These include controls such as:
 
 ```text
 X-Content-Type-Options
@@ -880,7 +910,7 @@ This significantly reduced scanner noise.
 
 ### Remaining Expected or Hardening Findings
 
-Examples of remaining scanner observations include:
+Examples of scanner observations from the earlier assessment include (not yet revalidated after the infrastructure refactor):
 
 ```text
 self-signed development certificate
@@ -970,7 +1000,26 @@ The isolated lab currently supports:
 - Keycloak/frontend CSP separation
 - remediation verification after Nginx changes
 
+Additional infrastructure work completed on 2026-11-26:
+
+- Dedicated gateway and static frontend separation
+- Nginx upgrade to `1.30.8-alpine` for both services
+- Dynamic upstream DNS configuration
+- Three-network Docker segmentation and obsolete-network cleanup
+- Network membership, routing table and default route inspection
+- Direct-IP and DNS isolation testing
+- Web outbound connectivity restriction verification
+- Docker-managed iptables chain and rule inspection
+
 ### Planned Security Labs
+
+- Post-refactor end-to-end login and API verification
+- API-to-PostgreSQL and API-to-Keycloak connectivity revalidation
+- Dynamic upstream DNS recovery with a confirmed IP change
+- NAT and published-port packet-flow inspection
+- Fresh external port scan and security-header verification
+- Outbound connectivity assessment for app-network services
+- Review of development credentials and secret management
 
 - broken function-level authorization / vertical authorization testing
 - JWT validation and tampering
@@ -999,7 +1048,7 @@ This separation keeps application implementation and security-assessment documen
 
 ## Project Status
 
-SecureBank now serves as a stable secure-by-default target for structured security testing.
+SecureBank serves as a controlled security-testing target with a segmented infrastructure. The latest refactor is deployed; complete post-refactor end-to-end and external regression testing is pending.
 
 The environment currently includes:
 
@@ -1012,14 +1061,17 @@ The environment currently includes:
 - object-level authorization controls
 - validated transfer ownership enforcement
 - validated beneficiary ownership enforcement
-- internal Docker networking
+- dedicated Nginx gateway and static frontend
+- three segmented Docker bridge networks
+- dynamic upstream DNS configuration
+- verified frontend network isolation
 - restricted service exposure
 - isolated Kali attacker VM
 - Ubuntu target VM
 - host firewalling
 - Nginx hardening
 - SPA-aware routing behavior
-- explicit API and Keycloak proxy precedence
+- separate API/Keycloak proxying and SPA file handling
 - scoped frontend security headers
 - externally observable API attack surface
 - Burp-compatible authenticated testing workflow
